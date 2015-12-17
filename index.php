@@ -14,9 +14,11 @@ use MyOddWeb\BigNumber;
 <?php
 include ( "src/bignumber.php" );
 
-$x = \MyOddWeb\BigNumber( "-12" );
-$y = $x->ToInt();
+$x = new \MyOddWeb\BigNumber( 20 );
+$y = $x->Factorial( )->ToString();
 echo $y;
+
+echo "<br />";
 echo "BigNumber rules!";
 ?>
   </body>

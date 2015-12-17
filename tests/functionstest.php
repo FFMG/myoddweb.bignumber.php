@@ -608,12 +608,14 @@ class TestFunctions extends PHPUnit_Framework_TestCase
 
   public function testCreateWithNullString()
   {
-    EXPECT_THROW(\MyOddWeb\BigNumber( NULL), std::runtime_error);
+    $this->setExpectedException("\MyOddWeb\BigNumberException" );
+    new \MyOddWeb\BigNumber( NULL );
   }
 
   public function testTheGivenStringIsInvalid()
   {
-    EXPECT_THROW(\MyOddWeb\BigNumber(" Hello World"), std::runtime_error);
+    $this->setExpectedException("\MyOddWeb\BigNumberException" );
+    new \MyOddWeb\BigNumber(" Hello World");
   }
 
   public function testGetNaturalETo150places()

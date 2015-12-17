@@ -33,6 +33,7 @@
 namespace MyOddWeb;
 
 require_once 'bignumberiterator.php';
+require_once 'bignumberconstants.php';
 
 class BigNumberException extends \Exception{};
 
@@ -44,15 +45,6 @@ function BigNumber()
 
 class BigNumber
 {
-  // zero.
-  protected static $_number_zero = null;
-
-  // one.
-  protected static $_number_one = null;
-
-  // two
-  protected static $_number_two = null;
-
   /**
    * All the numbers in our number.
    * @var bignumberiterator $_numebrs
@@ -91,33 +83,40 @@ class BigNumber
 
   public function __construct()
   {
-    if( null === static::$_number_zero )
-    {
-      static::$_number_zero = false;
-
-      // zero.
-      static::$_number_zero = new BigNumber( 0 );
-
-      // one.
-      static::$_number_one = new BigNumber( 1 );
-
-      // two
-      static::$_number_two = new BigNumber( 2 );
-    }
-
     $num = func_num_args();
     switch ( $num )
     {
+    case 0:
+      $this->_Default();
+      break;
+
     case 1:
       $arg = func_get_arg(0);
+      if( is_null($arg))
+      {
+        throw new BigNumberException( "The given argument cannot be NULL." );
+      }
+      else
       if( is_string($arg ))
       {
         $this->_ParseString($arg );
       }
-      else if( is_numeric($arg ))
+      else
+      if( is_numeric($arg ))
       {
         $this->_ParseNumber($arg );
       }
+      else
+      {
+        throw new BigNumberException( "Unknown argument type." );
+      }
+      break;
+
+    case 3:
+      $numbers = func_get_arg(0);
+      $decimals = func_get_arg(1);
+      $neg = func_get_arg(2);
+      $this->_ParseArray($numbers, $decimals, $neg );
       break;
 
     default:
@@ -127,6 +126,21 @@ class BigNumber
     }
 
     // the number is just zero.
+  }
+
+  /**
+   * Copy all the values from the source on
+   * @param BigNumber $src the source we are copying from.
+   * @return none;
+   */
+  protected function _Copy( $src )
+  {
+    $this->_base = $src->_base;
+    $this->_decimals = $src->_decimals;
+    $this->_nan = $src->_nan;
+    $this->_neg = $src->_neg;
+    $this->_numbers = $src->_numbers;
+    $this->_zero = $src->_zero;
   }
 
   /**
@@ -158,6 +172,49 @@ class BigNumber
 
     // we can then part the string.
     $this->_ParseString( strval($source) );
+  }
+
+  /**
+   * Create a big number using an array of number.
+   * @param array[int] $numbers the array of numbers.
+   * @param number $decimals the decimal places.
+   * @param boolean $neg if this is a negative number or not.
+   * @throws BigNumberException if one or more values are invalid.
+   */
+  protected function _ParseArray( $numbers, $decimals, $neg )
+  {
+    // check the array of numbers.
+    if( !is_array($numbers))
+    {
+      throw new BigNumberException( "The numbers must be an array." );
+    }
+
+    // check the flag and decimals.
+    if( !is_numeric($decimals) || $decimals < 0 )
+    {
+      throw new BigNumberException( "The number of decimals must be a non negative number." );
+    }
+
+    if( !is_bool($neg))
+    {
+      throw new BigNumberException( "The negative flag must be true/false." );
+    }
+
+    // do the default
+    $this->_Default();
+
+    // copy the values.
+    $this->_neg = (boolean) $neg;
+    $this->_decimals = (int)$decimals;
+
+    // add the numbers
+    foreach ( $numbers as $number )
+    {
+      $this->_numbers->push_back($number);
+    }
+
+    // clean it all up.
+    $this->PerformPostOperations( $this->_decimals );
   }
 
   /**
@@ -253,7 +310,7 @@ class BigNumber
   /**
    * Clean up the number to remove leading zeros and unneeded trailing zeros, (for decimals).
    * @param number precision the max precision we want to set.
-   * @return BigNumber& the number we cleaned up.
+   * @return BigNumber the number we cleaned up.
    */
   protected function PerformPostOperations( $precision)
   {
@@ -418,7 +475,7 @@ class BigNumber
 
   /**
    * Transform the number into absolute number.
-   * @return BigNumber& this non negative number.
+   * @return BigNumber this non negative number.
    */
   public function Abs()
   {
@@ -461,6 +518,22 @@ class BigNumber
       }
     }
     return $this->IsNeg() ? -1 * $number : $number;
+  }
+
+  /**
+   * Convert a big number to a double.
+   * @return double the converted number to a double.
+   */
+  public function ToDouble()
+  {
+    if ($this->IsNan())
+    {
+      //  php does not have a Nan() number.
+      return 0;
+    }
+
+    // the return number.
+    return doubleval( $this->ToString() );
   }
 
   /**
@@ -512,8 +585,8 @@ class BigNumber
 
   /**
    * Compare two number ignoring the sign.
-   * @param const BigNumber& lhs the left hand side number
-   * @param const BigNumber& rhs the right hand size number
+   * @param const BigNumber lhs the left hand side number
+   * @param const BigNumber rhs the right hand size number
    * @return int -ve rhs is greater, +ve lhs is greater and 0 = they are equal.
    */
   static protected function AbsCompare( $lhs, $rhs)
@@ -604,7 +677,7 @@ class BigNumber
    * +ve = *this > rhs
    * -ve = *this < rhs
    *   0 = *this == rhs
-   * @param const BigNumber& the number we are comparing to.
+   * @param const BigNumber the number we are comparing to.
    * @return number the comparaison, +/- or zero.
    */
   public function Compare( $rhs )
@@ -702,8 +775,76 @@ class BigNumber
   }
 
   /**
+   * Check if this number is equal to the given number.
+   * @see BigNumber::Compare( ... )
+   * @param const BigNumber& rhs the number we are comparing to.
+   * @return bool if the 2 numbers are the same.
+   */
+  public function IsEqual( $rhs )
+  {
+    return (0 == $this->Compare($rhs));
+  }
+
+  /**
+   * Check is a number does not equal another number.
+   * @see BigNumber::Compare( ... )
+   * @param const BigNumber& rhs the number we are comparing to.
+   * @return bool if the 2 numbers are not the same.
+   */
+  public function IsUnequal( $rhs)
+  {
+    return (0 != $this->Compare($rhs));
+  }
+
+  /**
+   * Check if this number is greater than the one given.
+   * @see BigNumber::Compare( ... )
+   * @param const BigNumber& rhs the number we are comparing to.
+   * @return bool if this number is greater than the given number
+   */
+  public function IsGreater( $rhs)
+  {
+    return (1 == $this->Compare($rhs));
+  }
+
+  /**
+   * Check if this number is smaler than the one given.
+   * @see BigNumber::Compare( ... )
+   * @param const BigNumber& rhs the number we are comparing to.
+   * @return bool if this number is smaller
+   */
+  public function IsLess( $rhs)
+  {
+    return (-1 == $this->Compare( $rhs ));
+  }
+
+  /**
+   * Check if this number is greater or equal to the rhs
+   * @see BigNumber::Compare( ... )
+   * @param const BigNumber& rhs the number we are comparing to.
+   * @return bool
+   */
+  public function IsGreaterEqual( $rhs)
+  {
+    $compare = $this->Compare( $rhs );
+    return ($compare == 0 || $compare == 1);
+  }
+
+  /**
+   * Compare if a number is less or equal
+   * @see BigNumber::Compare( ... )
+   * @param const BigNumber& rhs the number we are comparing to.
+   * @return bool if this number is smaller or equal to this number.
+   */
+  public function IsLessEqual( $rhs )
+  {
+    $compare = $this->Compare( $rhs );
+    return ($compare == 0 || $compare == -1);
+  }
+
+  /**
    * Calculate the remainder when 2 numbers are divided.
-   * @param const BigNumber& denominator the denominator dividing this number
+   * @param const BigNumber denominator the denominator dividing this number
    * @param BigNumber the remainder of the division.
    */
   public function Mod( $denominator)
@@ -712,10 +853,10 @@ class BigNumber
     $denominator = static::FromValue($denominator);
 
     // quick shortcut for an often use function.
-    if ( $denominator->Compare( static::$_number_two) == 0)
+    if ( $denominator->Compare( BigNumberConstants::Two() ) == 0)
     {
       // use this function, it is a lot quicker.
-      return $this->IsEven() ? static::$_number_zero : static::$_number_one;
+      return $this->IsEven() ? BigNumberConstants::Zero() : BigNumberConstants::One();
     }
 
     // calculate both the quotient and remainder.
@@ -729,7 +870,7 @@ class BigNumber
 
   /**
    * Calculate the quotient when 2 numbers are divided.
-   * @param const BigNumber& denominator the denominator dividing this number
+   * @param const BigNumber denominator the denominator dividing this number
    * @param BigNumber the quotient of the division.
    */
   public function Quotient( $denominator)
@@ -749,10 +890,10 @@ class BigNumber
   /**
    * Calculate the quotien and remainder of a division
    * @see https://en.wikipedia.org/wiki/Modulo_operation
-   * @param const BigNumber& numerator the numerator been devided.
-   * @param const BigNumber& denominator the denominator dividing the number.
-   * @param BigNumber& quotient the quotient of the division
-   * @param BigNumber& remainder the remainder.
+   * @param const BigNumber numerator the numerator been devided.
+   * @param const BigNumber denominator the denominator dividing the number.
+   * @param BigNumber quotient the quotient of the division
+   * @param BigNumber remainder the remainder.
    */
   static function QuotientAndRemainder( $numerator, $denominator, &$quotient, &$remainder)
   {
@@ -776,12 +917,130 @@ class BigNumber
   }
 
   /**
+   * Devide By Base, effectively remove a zero at the end.
+   * 50 (base16) / 10 (base16) = 5
+   * 50 (base10) / 10 (base10) = 5
+   * if the number is smaller then we need to add zeros.
+   * 5 (base10) / 10 (base10) = 0.5
+   * @param number divisor the number of times we are multiplying this by.
+   */
+  protected function DevideByBase( $divisor )
+  {
+    // set the decimals
+    $this->_decimals += $divisor;
+
+    // check that the length is valid
+    $l = $this->_numbers->size();
+    while ($l < $this->_decimals + 1)
+    {
+      $this->_numbers->push_back( 0 );
+      ++$l;
+    }
+    $this->PerformPostOperations( $this->_decimals );
+  }
+
+  /**
+   * Multiply By Base, effectively add a zero at the end.
+   * 5 (base16) * 10 (base16) = 50
+   * 5 (base10) * 10 (base10) = 50
+   * @param number multiplier the number of times we are multiplying this by.
+   */
+  protected function MultiplyByBase( $multiplier)
+  {
+    //  shortcut...
+    if ($multiplier == $this->_decimals)
+    {
+      $this->_decimals = 0;
+      $this->PerformPostOperations( 0 );
+      return;
+    }
+
+    // muliply by _base means that we are shifting the multipliers.
+    while ( $this->_decimals > 0 && $multiplier > 0 )
+    {
+      --$this->_decimals;
+      --$multiplier;
+    }
+
+    // if we have any multipliers left,
+    // keep moving by adding zeros.
+    for ($i = 0; $i < $multiplier; ++$i)
+    {
+      $this->_numbers->insert( 0, 0);
+    }
+
+    //  clean up
+    $this->PerformPostOperations( $this->_decimals );
+  }
+
+  /**
+   * Work out the bigest denominator we can use for the given remainder
+   * This is not a stand alone function, the values are calculated based on the value given to us.
+   * @param BigNumber max_denominator the current denominator, if it is too big we will devide it by base
+   * @param BigNumber base_multiplier the current multiplier, it the denominator is too big, we will divide it as well.
+   * @param const BigNumber remainder the current remainder value.
+   * @return bool if we can continue using the values or if we must end now.
+   */
+  static protected function _RecalcDenominator( $max_denominator, $base_multiplier, $remainder)
+  {
+    $max_denominator = static::FromValue($max_denominator);
+    $base_multiplier = static::FromValue($base_multiplier);
+    $remainder = static::FromValue($remainder);
+
+    // are done with this?
+    if ($remainder->IsZero())
+    {
+      return false;
+    }
+
+    // if the max denominator is greater than the remained
+    // then we must devide by _base.
+    $compare = static::AbsCompare($max_denominator, $remainder);
+    switch ( $compare )
+    {
+      case 0:
+        //  it is the same!
+        // the remainder has to be zero
+        return true;
+
+        // we cannot subtract the max_denominator as it is greater than the remainder.
+        // so we divide it so we can look for a smaller number.
+      case 1:
+        // divide all by _base
+        $max_denominator->DevideByBase(1);
+        $base_multiplier->DevideByBase(1);
+
+        // have we reached the end of the division limits?
+        if ( !$base_multiplier->IsInteger() )
+        {
+          // the number is no longer an integer
+          // meaning that we have divided it to the maximum.
+          return false;
+        }
+
+        // compare the value again, if it is _still_ too big, then go around divide it again.
+        // this causes recursion, but it should never hit any limits.
+        $compare = static::AbsCompare($max_denominator, $remainder);
+        if ($compare != -1)
+        {
+          return static::_RecalcDenominator( $max_denominator, $base_multiplier, $remainder);
+        }
+
+        // the number is now small enought and can be used.
+        return true;
+    }
+
+    //  still big enough.
+    return true;
+  }
+
+  /**
    * Calculate the quotien and remainder of a division
    * @see https://en.wikipedia.org/wiki/Modulo_operation
-   * @param const BigNumber& numerator the numerator been devided.
-   * @param const BigNumber& denominator the denominator dividing the number.
-   * @param BigNumber& quotient the quotient of the division
-   * @param BigNumber& remainder the remainder.
+   * @param const BigNumber numerator the numerator been devided.
+   * @param const BigNumber denominator the denominator dividing the number.
+   * @param BigNumber quotient the quotient of the division
+   * @param BigNumber remainder the remainder.
    */
   static protected function AbsQuotientAndRemainder($numerator, $denominator, &$quotient, $remainder)
   {
@@ -813,7 +1072,7 @@ class BigNumber
     // that way we know that we can return now something valid.
     // 20 % 5 = 0 ('cause 5*4 = 20 remainder = 0)
     // we need the number to be positive for now.
-    $remainder = $numerator;
+    $remainder = clone $numerator;
     $remainder->_neg = false;
 
     // if the numerator is greater than the denominator
@@ -830,9 +1089,9 @@ class BigNumber
     //
     // 1- look for the 'max' denominator.
     //    we need the number to be positive.
-    $max_denominator = $denominator;
+    $max_denominator = clone $denominator;
     $max_denominator->_neg = false;
-    $base_multiplier = static::$_number_one;
+    $base_multiplier = BigNumberConstants::One();
 
     while ( static::AbsCompare($max_denominator, $numerator) < 0)
     {
@@ -878,6 +1137,800 @@ class BigNumber
     // clean up the quotient and the remainder.
     $remainder->PerformPostOperations( $remainder->_decimals );
     $quotient->PerformPostOperations( $quotient->_decimals );
+  }
+
+  /**
+   * Add a big number to this number.
+   * @param const BigNumber rhs the number we want to add.
+   * @return BigNumber *this number to allow chainning
+   */
+  public function Add( $rhs )
+  {
+    $rhs = static::FromValue($rhs);
+
+    if ($this->IsNeg() == $rhs->IsNeg() )
+    {
+      //  both +1 or both -1
+      // -1 + -1 = -1 * (1+1)
+      // 1 + 1 = 1 * (1+1)
+      $this->_Copy( static::AbsAdd( $rhs, $this ) );
+
+      // the sign of *this will be lost and become
+      // positive, (this is what the function does).
+      // but we can use the one from rhs as that was not changed.
+      $this->_neg = $rhs->_neg;
+
+      // return this/cleaned up.
+      return $this->PerformPostOperations( $this->_decimals );
+    }
+
+    // both numbers are not the same sign
+    // compare the absolute values.
+    //
+    if (static::AbsCompare( $this, $rhs ) >= 0 )
+    {
+      //  save the sign
+      $neg = $this->IsNeg();
+
+      //  10 + -5 = this._neg * (10 - 5)  = 5
+      //  -10 + 5 = this._neg * (10 - 5)  = -5
+      $this->_Copy( static::AbsSub($this, $rhs ) );
+
+      // set the sign
+      $this->_neg = $neg;
+
+      // return this/cleaned up.
+      return $this->PerformPostOperations( $this->_decimals );
+    }
+
+    //  save the sign
+    $neg = $rhs->IsNeg();
+
+    //  5 + -10 = this._neg * (10 - 5)  = -5
+    //  -5 + 10 = this._neg * (10 - 5)  = 5
+    $this->_Copy( static::AbsSub($rhs, $this) );
+
+    // set the sign
+    $this->_neg = $neg;
+
+    // return this/cleaned up.
+    return $this->PerformPostOperations( $this->_decimals );
+  }
+
+  /**
+   * Multiply this number to the given number.
+   * @param const BigNumber the number we are multiplying to.
+   * @param size_t precision the presision we want to use.
+   * @return BigNumber this number.
+   */
+  public function Mul( $rhs, $precision = 100 )
+  {
+    $rhs = static ::FromValue($rhs);
+
+    // if one of them is negative, but not both, then it is negative
+    // if they are both the same, then it is positive.
+    // we need to save the value now as the next operation will make it positive
+    $neg = ($rhs->IsNeg() != $this->IsNeg());
+
+    // just multiply
+    $this->_Copy( static::AbsMul($this, $rhs, $precision ) );
+
+    // set the sign.
+    $this->_neg = $neg;
+
+    // return this/cleaned up.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * Devide this number by the given number.
+   * @param BigNumber $rhs the number we want to devide this by
+   * @param number $precision the max precision we wish to reache.
+   * @return BigNumber this number devided.
+   */
+  public function Div( $rhs, $precision = 100 )
+  {
+    $rhs = static::FromValue($rhs);
+
+    // if one of them is negative, but not both, then it is negative
+    // if they are both the same, then it is positive.
+    // we need to save the value now as the next operation will make it positive
+    $neg = ($rhs->IsNeg() != $this->IsNeg());
+
+    // just multiply
+    $this->_Copy( static::AbsDiv( $this, $rhs, $precision ) );
+
+    // set the sign.
+    $this->_neg = $neg;
+
+    // return this/cleaned up.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * Substract a big number from this number.
+   * @param const BigNumber rhs the number we want to substract.
+   * @return BigNumber *this number to allow chainning
+   */
+  public function Sub($rhs)
+  {
+    // make sure that the value is bignumber
+    $rhs = static::FromValue($rhs);
+
+    // if they are not the same sign then we add them
+    // and save the current sign
+    if ($this->IsNeg() != $rhs->IsNeg())
+    {
+      // save the sign
+      $neg = $this->IsNeg();
+
+      //  5 - -10 = this._neg * (10 + 5)  = 15
+      //  -5 - 10 = this._neg * (10 + 5)  = -15
+      $this->_Copy( static::AbsAdd($rhs, $this) );
+
+      // set the sign
+      $_neg = $neg;
+
+      // return this/cleaned up.
+      return $this->PerformPostOperations( $this->_decimals );
+    }
+
+    // both signs are the same, check if the absolute numbers.
+    // if lhs is greater than rhs then we can do a subtraction
+    // using our current sign
+    if (static::AbsCompare($this, $rhs) >= 0)
+    {
+      //  save the sign
+      $neg = $this->IsNeg();
+
+      //  -10 - -5 = this._neg * (10 - 5)  = -5
+      //  10 - 5 = this._neg * (10 - 5)  = 5
+      $this->_Copy( static::AbsSub($this, $rhs) );
+
+      // set the sign
+      $this->_neg = $neg;
+
+      // return this/cleaned up.
+      return $this->PerformPostOperations( $this->_decimals );
+    }
+
+    // in this case asb(rhs) is greater than abs(lhs)
+    // so we must use the oposite sign of rhs
+
+    //  save the sign
+    $neg = $rhs->IsNeg();
+
+    //  -5 - -10 = !rhs._neg * (10 - 5)  = 5
+    //  5 - 10 = !rhs._neg * (10 - 5)  = -5
+    $this->_Copy( static::AbsSub( $rhs, $this) );
+
+    // set the oposite sign
+    $this->_neg = !$neg;
+
+    // return this/cleaned up.
+    return $this->PerformPostOperations( $this->_decimals );
+  }
+
+  /**
+   * Multiply 2 absolute numbers together.
+   * @param BigNumber rhs the number been multiplied
+   * @param BigNumber rhs the number multipling
+   * @param size_t precision the max precision to stop once the limit is reached.
+   * @return BigNumber the product of the two numbers.
+   */
+  protected static function AbsDiv( $lhs, $rhs, $precision = 100 )
+  {
+    $lhs = static::FromValue($lhs);
+    $rhs = static::FromValue($rhs);
+
+    // lhs / 0 = nan
+    if ( $rhs->IsZero())
+    {
+      // lhs / 0 = nan
+      $c = new BigNumber();
+      $c->_nan = true;
+      return $c;
+    }
+
+    // 0 / n = 0
+    if ($lhs->IsZero())
+    {
+      // lhs / 0 = nan
+      return BigNumberConstants::Zero();
+    }
+
+    // any number divided by one is one.
+    if ( $rhs->Compare( BigNumberConstants::One() ) == 0)
+    {
+      // lhs / 1 = lhs
+      return $lhs;
+    }
+
+    // the decimal place.
+    $decimals = 0;
+
+    // the result
+    $c = [];
+
+    // the number we are working with.
+    $number = clone lhs;
+    $number->_neg = false;
+
+    // quotien/remainder we will use.
+    $quotient = new BigNumber();
+    $remainder = new BigNumber();
+
+    // divide until we are done ... or we reached the presision limit.
+    for (;;)
+    {
+      // get the quotient and remainder.
+      static::QuotientAndRemainder($number, $rhs, $quotient, $remainder);
+
+      // add the quotien to the current number.
+      foreach( $quotient->_numbers as $number )
+      {
+        array_unshift( $c, $number );
+      }
+
+      //  are we done?
+      if ($remainder->IsZero())
+      {
+        break;
+      }
+
+      //
+      $number = clone $remainder;
+      $number->MultiplyByBase( 1 );
+
+      // have we reached our limit?
+      if ($decimals >= $precision)
+      {
+        break;
+      }
+
+      //  the number of decimal
+      ++$decimals;
+    }
+
+    // then create the result with the known number of decimals.
+    return new BigNumber( $c, $decimals, false );
+  }
+
+  /**
+   * Multiply 2 absolute numbers together.
+   * @param const BigNumber rhs the number been multiplied
+   * @param const BigNumber rhs the number multipling
+   * @param size_t precision the max precision we want to use.
+   * @return BigNumber the product of the two numbers.
+   */
+  protected static function AbsMul( $lhs, $rhs, $precision )
+  {
+    $rhs = static::FromValue( $rhs );
+    $lhs = static::FromValue( $lhs );
+
+    // if either number is zero, then the total is zero
+    // that's the rule.
+    if ($lhs->IsZero() || $rhs->IsZero())
+    {
+      //  zero * anything = zero.
+      return BigNumberConstants::Zero();
+    }
+
+    // anything multiplied by one == anything
+    if (static::AbsCompare($lhs, BigNumberConstants::One() ) == 0) // 1 x rhs = rhs
+    {
+      return $rhs;
+    }
+    if (static::AbsCompare($rhs, BigNumberConstants::One()) == 0) // lhs x 1 = lhs
+    {
+      return $lhs;
+    }
+
+    $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
+
+    // if we have more than one decimals then we have to shift everything
+    // by maxDecimals * _base
+    // this will allow us to do the multiplication.
+    if ($maxDecimals > 0 )
+    {
+      // the final number of decimals is the total number of decimals we used.
+      // 10.12 * 10.12345=102.4493140
+      // 1012 * 1012345 = 1024493140
+      // decimals = 2 + 5 = 102.4493140
+      $decimals = $lhs->_decimals + $rhs->_decimals;
+
+      // copy the lhs with no decimals
+      $tlhs = clone $lhs;
+      $tlhs->MultiplyByBase( $lhs->_decimals);
+
+      // copy the rhs with no decimals
+      $trhs = clone $rhs;
+      $trhs->MultiplyByBase( $rhs->_decimals );
+
+      // do the multiplication without any decimals.
+      $c = static::AbsMul( $tlhs, $trhs, 0);
+
+      //  set the current number of decimals.
+      $c->DevideByBase( $decimals );
+
+      // return the value.
+      return $c->PerformPostOperations( $precision );
+    }
+
+    //  15 * 5  = 5*5 = 25 = push(5) carry_over = 2
+    //          = 5*1+ccarry_over) = 7 push(7)
+    //          = 75
+
+    //  15 * 25  = 5*5             = 25 = push(5) carry_over = 2
+    //           = 5*1+ccarry_over =  7 = push(7) carry_over = 0
+    //           = 75
+    //           = 2*5             = 10 = push(0) carry_over = 1
+    //           = 2*1+ccarry_over =  3 = push(3) carry_over = 0
+    //           = 30 * _base
+    //           = 300+75=375
+
+    // the two sizes
+    $ll = $lhs->_numbers->size();
+    $rl = $rhs->_numbers->size();
+
+    // the return number
+    $c = new BigNumber();
+    $shift = 7;
+    $max_base = 10000000;
+
+    $shifts = [];
+    for ( $x = 0; $x < $ll; $x+= $shift)
+    {
+      // this number
+      $numbers = [];
+
+      // and the carry over.
+      $carryOver = 0;
+
+      // get the numbers.
+      $lhs_number = $lhs->_MakeNumberAtIndex( $x, $shift );
+
+      for ( $y = 0; $y < $rl; $y += $shift)
+      {
+        $rhs_number = $rhs->_MakeNumberAtIndex($y, $shift);
+        $sum = $lhs_number * $rhs_number + $carryOver;
+        $carryOver = $sum / $max_base;
+
+        for ($z = 0; $z < $shift; ++$z )
+        {
+          $s = $sum % $rhs->_base;
+          $numbers[] = $s;
+
+          $sum = (int)((int)$sum / (int)$rhs->_base);
+        }
+      }
+
+      // add the carry over if we have one
+      while ($carryOver > 0)
+      {
+        $s = $carryOver % $rhs->_base;
+        $numbers[] = $s;
+        $carryOver = (int)((int)$carryOver / (int)$rhs->_base);
+      }
+
+      // shift everything
+      foreach( $shifts as $numberToAdd )
+      {
+        array_unshift( $numbers, $numberToAdd );
+      }
+
+      for ($z = 0; $z < $shift; ++$z) {
+        $shifts[] = 0;
+      }
+
+      // then add the number to our current total.
+      $c = static::AbsAdd($c, new BigNumber($numbers, 0, false));
+    }
+
+    // this is the number with no multipliers.
+    return $c->PerformPostOperations( $precision );
+  }
+
+  protected function _MakeNumberAtIndex( $index, $length)
+  {
+    $number = 0;
+    $l = $this->_numbers->size();
+    for ( $i = ($length-1); $i >= 0; --$i)
+    {
+      $pos = ($i + $index);
+      if ($pos >= $l)
+      {
+        continue;
+      }
+      $number = ($number * $this->_base) + $this->_numbers->at( $pos );
+    }
+    return $number;
+  }
+
+
+  /**
+   * Add 2 absolute numbers together.
+   * @param const BigNumber lhs the number been Added from
+   * @param const BigNumber rhs the number been Added with.
+   * @return BigNumber the sum of the two numbers.
+   */
+  protected static function AbsAdd( $lhs, $rhs)
+  {
+    $lhs = static::FromValue($lhs);
+    $rhs = static::FromValue($rhs);
+
+    // the carry over
+    $carryOver = 0;
+
+    // get the maximum number of decimals.
+    $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
+
+    $numbers = [];
+    for ($i = 0;; ++$i)
+    {
+      $l = $lhs->_At( $i, $maxDecimals);
+      $r = $rhs->_At( $i, $maxDecimals);
+      if ($l === 255 && $r === 255)
+      {
+        break;
+      }
+
+      $l = ($l == 255) ? 0 : $l;
+      $r = ($r == 255) ? 0 : $r;
+
+      $sum = $l + $r + $carryOver;
+
+      $carryOver = 0;
+      if ($sum >= $lhs->_base)
+      {
+        $sum -= $lhs->_base;
+        $carryOver = 1;
+      }
+      $numbers[] = $sum;
+    }
+
+    if ( $carryOver > 0)
+    {
+      $numbers[] = 1;
+    }
+
+    // this is the new numbers
+    return new BigNumber( $numbers, $maxDecimals, false );
+  }
+
+  /**
+   * Subtract 2 absolute numbers together.
+   * @param const BigNumber lhs the number been subtracted from
+   * @param const BigNumber rhs the number been subtracted with.
+   * @return BigNumber the diff of the two numbers.
+   */
+  protected static function AbsSub( $lhs, $rhs)
+  {
+    $lhs = static::FromValue($lhs);
+    $rhs = static::FromValue($rhs);
+
+    // compare the 2 numbers
+    if (static::AbsCompare($lhs, $rhs) < 0 )
+    {
+      // swap the two values to get a positive result.
+      $c = static::AbsSub($rhs, $lhs);
+
+      // but we know it is negative
+      $c->_neg = true;
+
+      // return the number
+      return $c->PerformPostOperations( $c->_decimals );
+    }
+
+    // if we want to subtract zero from the lhs, then the result is rhs
+    if ( $rhs->IsZero() )
+    {
+      return $lhs;
+    }
+
+    // we know that lhs is greater than rhs.
+    $carryOver = 0;
+    $ll = $lhs->_numbers->size();
+    $rl = $rhs->_numbers->size();
+
+    // get the maximum number of decimals.
+    $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
+    $lhsDecimalsOffset = $maxDecimals - $lhs->_decimals;
+    $rhsDecimalsOffset = $maxDecimals - $rhs->_decimals;
+
+    $numbers = [];
+    for ($i = 0;; ++$i)
+    {
+      if (($i - $lhsDecimalsOffset) >= $ll && ($i - $rhsDecimalsOffset) >= $rl)
+      {
+        break;
+      }
+
+      $l = ($i >= $lhsDecimalsOffset && $i < $ll + $lhsDecimalsOffset) ? $lhs->_numbers->at( $i - $lhsDecimalsOffset) : 0;
+      $r = ($i >= $rhsDecimalsOffset && $i < $rl + $rhsDecimalsOffset) ? $rhs->_numbers->at( $i - $rhsDecimalsOffset) : 0;
+
+      $sum = $l - $carryOver - $r;
+
+      $carryOver = 0;
+      if ($sum < 0)
+      {
+        $sum += $lhs->_base;
+        $carryOver = 1;
+      }
+
+      $numbers[] = $sum;
+    }
+
+    // this is the new numbers
+    return new BigNumber($numbers, $maxDecimals, false);
+  }
+
+  /**
+   * Get a number at a certain position, (from the last digit)
+   * In a number 1234.456 position #0 = 6 and #3=4
+   * The expected decimal, is the number of decimal we should have, if the expected number of decimals is 5, and the
+   * current number is 1234.56 then the 'actual' number is 1234.56000 so we have 5 decimal places.
+   * @param size_t position the number we want.
+   * @param size_t expectedDecimals the number of decimals we _should_ have, (see note).
+   * @return unsigned char the number or 255 if there is no valid number.
+   */
+  protected function _At( $position, $expectedDecimals)
+  {
+    // the numbers are saved in reverse:
+    //    #123 = [3][2][1]
+    // decimals are the same
+    //    #123.45 = [5][4][3][2][1]
+    //
+    // 'expectedDecimals' are decimals we are expected to have
+    // wether they exist or not, does not matter.
+    // so the number 123 with 2 'expected' decimals becomes
+    //    #123 = [0][0][3][2][1]
+    // but the number 123.45 with 2 'expected' decimals remains
+    //    #123 = [5][4][3][2][1]
+    //
+    // so, if we are looking to item 'position'=0 and we have 2 'expectedDecimals'
+    // then what we are really after is the first item '0'.
+    //    #123 = [0][0][3][2][1]
+    //
+    $actualPosition = (int)$position - (int)$expectedDecimals + (int)$this->_decimals;
+
+    // if that number is negative or past our limit
+    // then we return 255
+    if($actualPosition < 0 || $actualPosition >= $this->_numbers->size() )
+    {
+      return (int)255;
+    }
+
+    // we all good!
+    return $this->_numbers->at( $actualPosition );
+  }
+
+  /**
+   * Calculate the factorial of a non negative number
+   * 5! = 5x4x3x2x1 = 120
+   * @see https://en.wikipedia.org/wiki/Factorial
+   * @param size_t precision the precision we want to use.
+   * @return BigNumber the factorial of this number.
+   */
+  public function Factorial( $precision = 100 )
+  {
+    if ($this->IsNeg())
+    {
+      // we cannot do the factorial of a negative number
+      $this->_nan = true;
+
+      // then return this number
+      return $this;
+    }
+
+    // is it zero
+    if ($this->IsZero())
+    {
+      // The value of 0!is 1, according to the convention for an empty product
+      $this->_Copy( BigNumberConstants::One() );
+
+      // then return this number
+      return $this;
+    }
+
+    // the factorial.
+    $c = clone $this;
+
+    while (static::AbsCompare( BigNumberConstants::One() ) == 1 )
+    {
+      // subtract one.
+      $this->Sub( BigNumberConstants::One() );
+
+      // multiply it
+      $c->Mul( $this, $precision );
+    }
+
+    // clean it all up and update our value.
+    $this->_Copy( $c->PerformPostOperations( $c->_decimals ) );
+
+    // return *this
+    return $this;
+  }
+
+  /**
+   * Truncate the number
+   * @param size_t precision the max number of decimals.
+   * @return const BigNumber the truncated number.
+   */
+  public function Trunc( $precision = 100 )
+  {
+    // does anything need to be done.
+    if ($this->_decimals <= $precision)
+    {
+      return $this;
+    }
+
+    //  strip all the decimal.
+    if ($this->_decimals > $precision)
+    {
+      $end = $this->_decimals - $precision;
+      $this->_numbers->erase(0, $end );
+      $this->_decimals -= $end;
+    }
+
+    // done.
+    return $this->PerformPostOperations( $this->_decimals );
+  }
+
+  /**
+   * Round a number to the nearest int, ( 1.2 > 1 && 1.8 > 2)
+   * @param size_t precision the rounding prescision
+   * @return BigNumber this number rounded to 'x' precision.
+   */
+  public function Round( $precision = 100 )
+  {
+    // if it is not a number than there is no rounding to do.
+    if ( $this->IsNan() )
+    {
+      return $this;
+    }
+
+    if ( $this->IsNeg() )
+    {
+      $this->_neg = false;
+      $this->Round($precision);
+      $this->_neg = true;
+
+      // already cleaned up.
+      return $this;
+    }
+
+    // add 0.5 and floor(...) it.
+    $number = new BigNumber( 5 );
+    $number->DevideByBase( ($precision+1));
+    $x = static::AbsAdd($number, $this);
+    $this->_Copy( $x->Floor( precision ) );
+
+    // clean up.
+    return PerformPostOperations( precision );
+  }
+
+  /**
+   * Round up the number
+   * @param size_t precision the precision we want to set.
+   * @return const BigNumber the number rounded up.
+   */
+  public function Ceil($precision = 100 )
+  {
+    // does anything need to be done.
+    if ( $this->_decimals <= $precision)
+    {
+      return $this;
+    }
+
+    //  strip all the decimal.
+    $this->Trunc( $precision );
+
+    // if it positive then we need to go up one more
+    if (!$this->IsNeg())
+    {
+      $this->Add( BigNumberConstants::One() );
+    }
+
+    // done.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * Round down the number
+   * @param size_t precision the precision we want to set.
+   * @return const BigNumber the number rounded up.
+   */
+  public function Floor($precision = 100 )
+  {
+    // does anything need to be done.
+    if ($this->_decimals <= $precision)
+    {
+      return $this;
+    }
+
+    //  strip all the decimal.
+    $this->Trunc( $precision );
+
+    // if it negative then we need to subtract one more.
+    if ($this->IsNeg())
+    {
+      $this->Sub( BigNumberConstants::One() );
+    }
+
+    // done.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * @see https://en.wikipedia.org/wiki/E_%28mathematical_constant%29
+   * @see http://www.miniwebtool.com/first-n-digits-of-pi/?number=1000
+   * @uses return BigNumberConstants::e()
+   * @return BigNumber e
+   */
+  public static function e()
+  {
+    return BigNumberConstants::e();
+  }
+
+  /**
+   * The const value of pi to 1000 numbers
+   * @see https://en.wikipedia.org/wiki/E_%28mathematical_constant%29
+   * @see http://www.wolframalpha.com/input/?i=pi+to+1000+digits
+   * @uses return BigNumberConstants::pi()
+   * @return BigNumber pi
+   */
+  public static function pi()
+  {
+    return BigNumberConstants::pi();
+  }
+
+  /**
+   * Convert a Radian number to degree
+   * @see http://www.mathwarehouse.com/trigonometry/radians/convert-degee-to-radians.php
+   * @param size_t precision the precision we want to limit this to.
+   * @return BigNumber this number converted to a Degree number.
+   */
+  public function ToDegree($precision = 100 )
+  {
+    if ($this->IsZero())
+    {
+      // nothing to do, apart from trimming.
+      return $this->PerformPostOperations($precision);
+    }
+
+    // get 180 / pi
+    $oneEightyOverpi = static::AbsDiv(180, BigNumberConstants::pi(), BigNumberConstants::PrecisionPadding($precision));
+
+    // the number is x * (180/pi)
+    $this->Mul($oneEightyOverpi, BigNumberConstants::PrecisionPadding($precision));
+
+    // clean up and done.
+    return $this->Round($precision)->PerformPostOperations($precision);
+  }
+
+  /**
+   * Convert a Degree number to radian
+   * @see http://www.mathwarehouse.com/trigonometry/radians/convert-degee-to-radians.php
+   * @param size_t precision the precision we want to limit this to.
+   * @return BigNumber this number converted to a Radian number.
+   */
+  public function ToRadian($precision = 100 )
+  {
+    if ($this->IsZero())
+    {
+      // nothing to do, apart from trimming.
+      return $this->PerformPostOperations($precision);
+    }
+
+    // get pi / 180
+    $piOver180 = static::AbsDiv(BigNumberConstants::pi(), 180, BigNumberConstants::PrecisionPadding($precision));
+
+    // the number is x * (pi/180)
+    $this->Mul( $piOver180, BigNumberConstants::PrecisionPadding($precision) );
+
+    // clean up and done.
+    return $this->Round( $precision)->PerformPostOperations($precision);
   }
 }
 ?>
