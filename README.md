@@ -1,4 +1,4 @@
-# myoddweb.bignumber.php #
+, le # myoddweb.bignumber.php #
 A php bignumber class that does not have any external dependency.
 Based on the [myoddweb.bignumber.cpp project](https://github.com/FFMG/myoddweb.bignumber.cpp)
 
@@ -67,6 +67,14 @@ or you could do the same without the '***new***' argument.
 
 # Functions #
 ### Math functions ###
+- Add( number ) : Add '*number*' to '*this*' number.
+- Sub( number ) : Subtract '*number*' from '*this*' number.
+- Mul( number ) : Multiply '*number*' to '*this*' number.
+- Div( number ) : Divide '*this*' by '*number*' number.
+- Add( number ) : Add '*number*' to '*this*' number.
+- Factorial() : The factorial of this number, (!n)
+- Mod( number ) : The mod of '*this*' number, (n % m). The remainder of the division. 
+- Quotient( number ) : : The quotient of dividing '*this*' number with this '*number*'.
 
 ### Other functions ###
 - IsNeg() : If '*this*' number is negative or not.
@@ -84,10 +92,19 @@ or you could do the same without the '***new***' argument.
 - IsInteger() : If '*this*' number is a whole number positive or negative. 
 
 - ToInt() : convert to int.
-
+- ToDouble() : convert to double.
+- ToString() : convert to string.
 - Abs() : Get the absolute value of the number
+- Trunc( precision ) : Truncate the number, strip the decimals. (+/-n.xyz = n)
+- Ceil( precision ) : Round the number up (2.1 = 3 / -2.1 = -2)
+- Floor( precision ) : Round the number down (2.1 = 2 / -2.1 = -3)
+    
+- ToDegree( ... ) : convert *this* from a Radian to a Degree given a certain precision.  
+- ToRadiant( ... ) : convert *this* from a Degree to a Radian given a certain precision.    
 
 ## Constants ##
+- e() : [Euler's number](https://en.wikipedia.org/wiki/E_%28mathematical_constant%29) (to 150 decimals).
+- pi(): [Pi](https://en.wikipedia.org/wiki/Pi), (to 150 decimals).
 
 # Todo #
 
