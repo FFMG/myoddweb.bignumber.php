@@ -6,6 +6,4 @@ ini_set('display_startup_errors', '1');
 date_default_timezone_set( "UTC" );
 
 require_once "vendor/autoload.php";
-
-include ( "../src/bignumber.php" );
 ?>

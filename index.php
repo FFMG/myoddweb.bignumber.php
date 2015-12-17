@@ -13,7 +13,10 @@ use MyOddWeb\BigNumber;
   <body>
 <?php
 include ( "src/bignumber.php" );
-new MyOddWeb\BigNumber();
+
+$x = \MyOddWeb\BigNumber( "-12" );
+$y = $x->ToInt();
+echo $y;
 echo "BigNumber rules!";
 ?>
   </body>
