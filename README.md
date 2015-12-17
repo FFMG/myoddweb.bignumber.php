@@ -1,4 +1,4 @@
-, le # myoddweb.bignumber.php #
+# myoddweb.bignumber.php #
 A php bignumber class that does not have any external dependency.
 Based on the [myoddweb.bignumber.cpp project](https://github.com/FFMG/myoddweb.bignumber.cpp)
 
