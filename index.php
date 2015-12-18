@@ -20,10 +20,8 @@ use MyOddWeb\BigNumber;
 <?php
 include ( "src/bignumber.php" );
 
-$x = \MyOddWeb\BigNumber( 100 )->Div( 4,5 )->ToString();
-echo $x;
-
-$x = \MyOddWeb\BigNumber( 3.141592 )->ToDegree(10)->ToString();
+$rad = \MyOddWeb\BigNumber( \MyOddWeb\BigNumber::pi() )->ToDegree(10);
+$x = $rad->ToString();
 echo $x;
 
 echo "<br />";

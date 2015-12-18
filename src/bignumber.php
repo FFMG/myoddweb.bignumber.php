@@ -37,6 +37,12 @@ require_once 'bignumberconstants.php';
 
 class BigNumberException extends \Exception{};
 
+/**
+ * Helper function to create a Bignumber without the need of calling new BigNumber( ... )
+ * It also helps to allow chainning, (with the 'new' keyword you need to wrap the whole thing in brackets.
+ * Just call $x = BigNumber( 1234 )->Div( 100 )->ToString();
+ * @return BigNumber the created BigNumber object.
+ */
 function BigNumber()
 {
   $rc=new \ReflectionClass('\MyOddWeb\BigNumber');
@@ -1369,7 +1375,7 @@ class BigNumber
     // the decimal place.
     $decimals = 0;
 
-    // the result
+    // the result in reverse order.
     $c = [];
 
     // the number we are working with.
@@ -1425,8 +1431,8 @@ class BigNumber
    */
   protected static function AbsMul( $lhs, $rhs, $precision )
   {
-    $rhs = static::FromValue( $rhs );
-    $lhs = static::FromValue( $lhs );
+    $lhs = static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
+    $rhs = static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
 
     // if either number is zero, then the total is zero
     // that's the rule.
