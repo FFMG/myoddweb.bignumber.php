@@ -1,0 +1,13 @@
+<phpunit bootstrap="./tests/bootstrap.php" colors="true">
+  <filter>
+   <blacklist>
+    <directory suffix=".php">library/code/Zend</directory>
+   </blacklist>
+  </filter>
+        
+  <testsuites>
+    <testsuite name="All Tests">
+      <directory suffix="test.php">./</directory>
+    </testsuite>
+  </testsuites>
+</phpunit>
