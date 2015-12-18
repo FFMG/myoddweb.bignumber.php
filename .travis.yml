@@ -11,6 +11,3 @@ matrix:
   fast_finish: true
   allow_failures:
     - php: 7
-
-script:
-  - ./vendor/bin/phpunit
