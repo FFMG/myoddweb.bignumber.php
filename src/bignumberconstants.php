@@ -85,7 +85,7 @@ final class BigNumberConstants
     {
       self::$_zero = new BigNumber( [0], 0, false );
     }
-    return self::$_zero;
+    return clone self::$_zero;
   }
 
   /**
@@ -98,7 +98,7 @@ final class BigNumberConstants
     {
       self::$_one = new BigNumber( [1], 0, false );
     }
-    return self::$_one;
+    return clone self::$_one;
   }
 
   /**
@@ -111,7 +111,7 @@ final class BigNumberConstants
     {
       self::$_two = new BigNumber( [2], 0, false );
     }
-    return self::$_two;
+    return clone self::$_two;
   }
 
   /**
@@ -130,7 +130,7 @@ final class BigNumberConstants
     }
 
     // return it
-    return self::$_e;
+    return clone self::$_e;
   }
 
   /**
@@ -151,7 +151,7 @@ final class BigNumberConstants
     }
 
     // return it
-    return self::$_pi;
+    return clone self::$_pi;
   }
 }
 ?>

@@ -235,7 +235,7 @@ class TestFunctions extends PHPUnit_Framework_TestCase
   {
     $src = new \MyOddWeb\BigNumber (1000);
     $mod = $src->Mod(244.14025);
-    $this->assertSame(23.439, $mod->ToDouble());
+    $this->assertSame(23.439, $mod->ToDouble() );
   }
 
   public function testModulusZeroNegativeDivisor()
@@ -528,13 +528,13 @@ class TestFunctions extends PHPUnit_Framework_TestCase
     {
       $c = new \MyOddWeb\BigNumber(-2.3);
       $d = $c->Ceil()->ToDouble();  //  use a double so we don't truncate it.
-      $this->assertSame(-2.0, d);
+      $this->assertSame(-2.0, $d);
     }
 
     {
       $c = new \MyOddWeb\BigNumber(-7.999);
       $d = $c->Ceil()->ToDouble();  //  use a double so we don't truncate it.
-      $this->assertSame(-7.0, d);
+      $this->assertSame(-7.0, $d);
     }
 
     {
@@ -662,8 +662,8 @@ class TestFunctions extends PHPUnit_Framework_TestCase
 
     {
       $xrand = (rand() % 32767);
-      $x = new \MyOddWeb\BigNumber (-1 * xrand);
-      $y = new \MyOddWeb\BigNumber (xrand);
+      $x = new \MyOddWeb\BigNumber (-1 * $xrand);
+      $y = new \MyOddWeb\BigNumber ($xrand);
 
       // we are smaller.
       $this->assertSame( -1, $x->Compare($y));
@@ -1120,23 +1120,23 @@ class TestFunctions extends PHPUnit_Framework_TestCase
   {
     {
       $x = new \MyOddWeb\BigNumber ("1.2");
-      $integer = x.Integer()->ToDouble();
-      $this->assertSame(1, $integer);
+      $integer = $x->Integer()->ToDouble();
+      $this->assertSame(1.0, $integer);
     }
     {
       $x = new \MyOddWeb\BigNumber ("12345.2");
-      $integer = x.Integer()->ToDouble();
-      $this->assertSame(12345, $integer);
+      $integer = $x->Integer()->ToDouble();
+      $this->assertSame(12345.0, $integer);
     }
     {
       $x = new \MyOddWeb\BigNumber ("12");
-      $integer = x.Integer()->ToDouble();
-      $this->assertSame(12, $integer);
+      $integer = $x->Integer()->ToDouble();
+      $this->assertSame(12.0, $integer);
     }
     {
       $x = new \MyOddWeb\BigNumber ("0.23456");
       $integer = $x->Integer()->ToDouble();
-      $this->assertSame(0, $integer);
+      $this->assertSame(0.0, $integer);
       $this->assertTrue( $x->IsZero() );
     }
   }
@@ -1145,23 +1145,23 @@ class TestFunctions extends PHPUnit_Framework_TestCase
   {
     {
       $x = new \MyOddWeb\BigNumber ("-1.2");
-      $integer = x.Integer()->ToDouble();
-      $this->assertSame(-1, $integer);
+      $integer = $x->Integer()->ToDouble();
+      $this->assertSame(-1.0, $integer);
     }
     {
       $x = new \MyOddWeb\BigNumber ("-12345.2");
-      $integer = x.Integer()->ToDouble();
-      $this->assertSame(-12345, $integer);
+      $integer = $x->Integer()->ToDouble();
+      $this->assertSame(-12345.0, $integer);
     }
     {
       $x = new \MyOddWeb\BigNumber ("-12");
-      $integer = x.Integer()->ToDouble();
-      $this->assertSame(-12, $integer);
+      $integer = $x->Integer()->ToDouble();
+      $this->assertSame(-12.0, $integer);
     }
     {
       $x = new \MyOddWeb\BigNumber ("-0.23456");
-      $integer = x.Integer()->ToDouble();
-      $this->assertSame(0, $integer);
+      $integer = $x->Integer()->ToDouble();
+      $this->assertSame(0.0, $integer);
       $this->assertTrue($x->IsZero());
     }
   }
@@ -1170,28 +1170,28 @@ class TestFunctions extends PHPUnit_Framework_TestCase
   {
     {
       $x = new \MyOddWeb\BigNumber ("-1.2");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("-0.2", $fraction);
     }
     {
       $x = new \MyOddWeb\BigNumber ("-12345.678");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("-0.678", $fraction);
     }
     {
       $x = new \MyOddWeb\BigNumber ("-12345.2");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("-0.2", $fraction);
     }
     {
       $x = new \MyOddWeb\BigNumber ("-12");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame( "0", $fraction);
       $this->assertTrue($x->IsZero());
     }
     {
       $x = new \MyOddWeb\BigNumber ("-0.23456");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("-0.23456", $fraction);
     }
   }
@@ -1200,28 +1200,28 @@ class TestFunctions extends PHPUnit_Framework_TestCase
   {
     {
       $x = new \MyOddWeb\BigNumber ("1.2");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("0.2", $fraction);
     }
     {
       $x = new \MyOddWeb\BigNumber ("12345.678");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("0.678", $fraction);
     }
     {
       $x = new \MyOddWeb\BigNumber ("12345.2");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("0.2", $fraction);
     }
     {
       $x = new \MyOddWeb\BigNumber ("12");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("0", $fraction);
       $this->assertTrue($x->IsZero());
     }
     {
       $x = new \MyOddWeb\BigNumber ("0.23456");
-      $fraction = x.Frac()->ToString();
+      $fraction = $x->Frac()->ToString();
       $this->assertSame("0.23456", $fraction);
     }
   }
@@ -1466,8 +1466,8 @@ class TestFunctions extends PHPUnit_Framework_TestCase
   {
     $rnd = (rand() % 32767) * 2 + 1;  //  it has to be odd...
     $evenNumber = new \MyOddWeb\BigNumber( $rnd );
-    $this->assertFalse( $$evenNumber->IsEven());   //  it has to be odd...
-    $this->assertSame(1, $$evenNumber->Mod(2)->ToInt() );
+    $this->assertFalse( $evenNumber->IsEven());   //  it has to be odd...
+    $this->assertSame(1, $evenNumber->Mod(2)->ToInt() );
   }
 
   public function testCannotRoundNanNumbers()

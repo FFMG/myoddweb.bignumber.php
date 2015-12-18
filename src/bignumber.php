@@ -128,6 +128,10 @@ class BigNumber
     // the number is just zero.
   }
 
+  public function __clone() {
+    $this->_numbers = clone $this->_numbers;
+  }
+
   /**
    * Copy all the values from the source on
    * @param BigNumber $src the source we are copying from.
@@ -317,7 +321,7 @@ class BigNumber
     if ( $this->_decimals > $precision)
     {
       // trunc will call this function again.
-      return $this->Trunc(precision);
+      return $this->Trunc( $precision);
     }
 
     // assume that we are not zero
@@ -467,7 +471,7 @@ class BigNumber
     }
 
     // get the first non decimal number.
-    $c = _numbers.at( 0 + $this->_decimals );
+    $c = $this->_numbers->at( 0 + $this->_decimals );
 
     // is that number even?
     return (($c % 2) == 0);
@@ -1042,7 +1046,7 @@ class BigNumber
    * @param BigNumber quotient the quotient of the division
    * @param BigNumber remainder the remainder.
    */
-  static protected function AbsQuotientAndRemainder($numerator, $denominator, &$quotient, $remainder)
+  static protected function AbsQuotientAndRemainder($numerator, $denominator, &$quotient, &$remainder)
   {
     $numerator = static::FromValue($numerator);
     $denominator = static::FromValue($denominator);
@@ -1085,7 +1089,7 @@ class BigNumber
       return;
     }
 
-    // do a 'quick' remainder calculatations.
+    // do a 'quick' remainder calculations.
     //
     // 1- look for the 'max' denominator.
     //    we need the number to be positive.
@@ -1269,7 +1273,7 @@ class BigNumber
       $this->_Copy( static::AbsAdd($rhs, $this) );
 
       // set the sign
-      $_neg = $neg;
+      $this->_neg = $neg;
 
       // return this/cleaned up.
       return $this->PerformPostOperations( $this->_decimals );
@@ -1353,7 +1357,7 @@ class BigNumber
     $c = [];
 
     // the number we are working with.
-    $number = clone lhs;
+    $number = clone $lhs;
     $number->_neg = false;
 
     // quotien/remainder we will use.
@@ -1494,7 +1498,7 @@ class BigNumber
       {
         $rhs_number = $rhs->_MakeNumberAtIndex($y, $shift);
         $sum = $lhs_number * $rhs_number + $carryOver;
-        $carryOver = $sum / $max_base;
+        $carryOver = (int)((int)$sum / (int)$max_base);
 
         for ($z = 0; $z < $shift; ++$z )
         {
@@ -1736,7 +1740,7 @@ class BigNumber
     // the factorial.
     $c = clone $this;
 
-    while (static::AbsCompare( BigNumberConstants::One() ) == 1 )
+    while (static::AbsCompare( $this, BigNumberConstants::One() ) == 1 )
     {
       // subtract one.
       $this->Sub( BigNumberConstants::One() );
@@ -1757,7 +1761,7 @@ class BigNumber
    * @param size_t precision the max number of decimals.
    * @return const BigNumber the truncated number.
    */
-  public function Trunc( $precision = 100 )
+  public function Trunc( $precision = 0 )
   {
     // does anything need to be done.
     if ($this->_decimals <= $precision)
@@ -1782,7 +1786,7 @@ class BigNumber
    * @param size_t precision the rounding prescision
    * @return BigNumber this number rounded to 'x' precision.
    */
-  public function Round( $precision = 100 )
+  public function Round( $precision = 0 )
   {
     // if it is not a number than there is no rounding to do.
     if ( $this->IsNan() )
@@ -1804,10 +1808,10 @@ class BigNumber
     $number = new BigNumber( 5 );
     $number->DevideByBase( ($precision+1));
     $x = static::AbsAdd($number, $this);
-    $this->_Copy( $x->Floor( precision ) );
+    $this->_Copy( $x->Floor( $precision ) );
 
     // clean up.
-    return PerformPostOperations( precision );
+    return $this->PerformPostOperations( $precision );
   }
 
   /**
@@ -1815,7 +1819,7 @@ class BigNumber
    * @param size_t precision the precision we want to set.
    * @return const BigNumber the number rounded up.
    */
-  public function Ceil($precision = 100 )
+  public function Ceil($precision = 0 )
   {
     // does anything need to be done.
     if ( $this->_decimals <= $precision)
@@ -1841,7 +1845,7 @@ class BigNumber
    * @param size_t precision the precision we want to set.
    * @return const BigNumber the number rounded up.
    */
-  public function Floor($precision = 100 )
+  public function Floor($precision = 0 )
   {
     // does anything need to be done.
     if ($this->_decimals <= $precision)
@@ -1932,5 +1936,39 @@ class BigNumber
     // clean up and done.
     return $this->Round( $precision)->PerformPostOperations($precision);
   }
+
+  /**
+   * Convert this number to an integer
+   * @see https://en.wikipedia.org/wiki/Integer
+   * @return BigNumber& *this the integer.
+   */
+  public function Integer()
+  {
+    // truncate and return, the sign is kept.
+    return $this->PerformPostOperations( 0 );
+  }
+
+  /**
+   * Convert this number to the fractional part of the integer.
+   * @see https://en.wikipedia.org/wiki/Fractional_part
+   * @return BigNumber& *this the fractional part of the number.
+   */
+  public function Frac()
+  {
+    if ($this->_decimals == 0)
+    {
+      $this->_Copy( BigNumberConstants::Zero() );
+    }
+    else
+    {
+      $l = $this->_numbers->size();
+      $this->_numbers->erase( $this->_decimals, $l - $this->_decimals );
+      $this->_numbers->push_back(0);
+    }
+
+    // truncate and return, the sign is kept.
+    return $this->PerformPostOperations( $this->_decimals );
+  }
+
 }
 ?>

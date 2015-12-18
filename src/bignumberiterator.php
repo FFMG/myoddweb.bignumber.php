@@ -176,8 +176,19 @@ class BigNumberIterator implements \Iterator
     return $this->_numbers[$where];
   }
 
-  public function erase( $where )
+  /**
+   * Remove an item from a start position to a given length.
+   * @param number $where where we want to remove this from.
+   * @param number $length the length we want to remove, (default is one).
+   * @throws BigNumberIteratorException if one ore more values are invalid.
+   */
+  public function erase( $where, $length = 1 )
   {
+    if( !is_int($length) || $length <= 0 )
+    {
+      throw new BigNumberIteratorException( "The length must be a number and cannot be smaller than one." );
+    }
+
     if( !is_int($where) )
     {
       throw new BigNumberIteratorException( "The position has to be an integer." );
@@ -194,10 +205,10 @@ class BigNumberIterator implements \Iterator
     }
 
     // @see http://www.php.net/manual/en/function.array-splice.php
-    array_splice( $this->_numbers, $where, 1 );
+    array_splice( $this->_numbers, $where, $length );
 
     // we removed one item
-    --$this->_size;
+    $this->_size -= $length;
 
     // return the new size
     return $this->size();
