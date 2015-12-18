@@ -1,4 +1,10 @@
 <?php
+ini_set('error_reporting', E_ALL); // or error_reporting(E_ALL);
+ini_set('display_errors', '1');
+ini_set('display_startup_errors', '1');
+
+date_default_timezone_set( "UTC" );
+
 use MyOddWeb\BigNumber;
 ?>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
@@ -14,9 +20,11 @@ use MyOddWeb\BigNumber;
 <?php
 include ( "src/bignumber.php" );
 
-$x = new \MyOddWeb\BigNumber( 20 );
-$y = $x->Factorial( )->ToString();
-echo $y;
+$x = \MyOddWeb\BigNumber( 100 )->Div( 4,5 )->ToString();
+echo $x;
+
+$x = \MyOddWeb\BigNumber( 3.141592 )->ToDegree(10)->ToString();
+echo $x;
 
 echo "<br />";
 echo "BigNumber rules!";

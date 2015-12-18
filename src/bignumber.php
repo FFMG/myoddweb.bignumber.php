@@ -107,6 +107,11 @@ class BigNumber
         $this->_ParseNumber($arg );
       }
       else
+      if( $arg instanceof BigNumber )
+      {
+        $this->_Copy( $arg );
+      }
+      else
       {
         throw new BigNumberException( "Unknown argument type." );
       }
@@ -143,7 +148,7 @@ class BigNumber
     $this->_decimals = $src->_decimals;
     $this->_nan = $src->_nan;
     $this->_neg = $src->_neg;
-    $this->_numbers = $src->_numbers;
+    $this->_numbers = clone $src->_numbers;
     $this->_zero = $src->_zero;
   }
 
@@ -567,6 +572,17 @@ class BigNumber
       }
     }
     return $this->IsNeg() ? ('-' . $number) : $number;
+  }
+
+  /**
+   * Use the tostring magic function to convert this value to a string.
+   * useful for direct echo and so on
+   * @uses self::ToString();
+   * @return string the string value
+   */
+  public function __toString()
+  {
+    return $this->ToString();
   }
 
   /**
@@ -1324,8 +1340,8 @@ class BigNumber
    */
   protected static function AbsDiv( $lhs, $rhs, $precision = 100 )
   {
-    $lhs = static::FromValue($lhs);
-    $rhs = static::FromValue($rhs);
+    $lhs = static::FromValue($lhs);//->Round( BigNumberConstants::PrecisionPadding($precision));
+    $rhs = static::FromValue($rhs);//->Round( BigNumberConstants::PrecisionPadding($precision));
 
     // lhs / 0 = nan
     if ( $rhs->IsZero())
@@ -1371,7 +1387,7 @@ class BigNumber
       static::QuotientAndRemainder($number, $rhs, $quotient, $remainder);
 
       // add the quotien to the current number.
-      foreach( $quotient->_numbers as $number )
+      foreach( array_reverse( $quotient->_numbers->raw()) as $number )
       {
         array_unshift( $c, $number );
       }
@@ -1479,8 +1495,11 @@ class BigNumber
 
     // the return number
     $c = new BigNumber();
-    $shift = 7;
-    $max_base = 10000000;
+    $shift = 4;           // max int = 2147483647 on a 32 bit process
+                          // so the biggest number we can have is 46340 (46340*46340=2147395600)
+                          // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
+                          // the biggest number is 9999*9999= 99980001
+    $max_base = 10000;
 
     $shifts = [];
     for ( $x = 0; $x < $ll; $x+= $shift)
