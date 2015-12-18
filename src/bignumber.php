@@ -1340,8 +1340,8 @@ class BigNumber
    */
   protected static function AbsDiv( $lhs, $rhs, $precision = 100 )
   {
-    $lhs = static::FromValue($lhs);//->Round( BigNumberConstants::PrecisionPadding($precision));
-    $rhs = static::FromValue($rhs);//->Round( BigNumberConstants::PrecisionPadding($precision));
+    $lhs = static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
+    $rhs = static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
 
     // lhs / 0 = nan
     if ( $rhs->IsZero())
