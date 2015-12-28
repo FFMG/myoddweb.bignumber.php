@@ -47,6 +47,19 @@ Doubles
     $y = new \MyOddWeb\BigNumber(26.0);
     $sum = $x->Add( $y )->ToDouble();
 
+Convert to another base
+
+    // output number to base 2.
+    $x = new \MyOddWeb\BigNumber(5);
+    $base2 = $x->ToBase( 2 );	// =101 (base 2)
+
+    // fraction/real numbers
+    // output number to base 8 with decimals.
+    $x = new \MyOddWeb\BigNumber(10.8);
+    $base2 = x->ToBase( 8, 2 );	// =12.63 (base 8)
+
+You can convert from base 2 to base 62
+
 **Operations in one line:**
 
 Integers
@@ -93,7 +106,10 @@ or you could do the same without the '***new***' argument.
 
 - ToInt() : convert to int.
 - ToDouble() : convert to double.
-- ToString() : convert to string.
+- ToString() : Output the number as a string, (if you want to limit the number of decimals use the *ToBase( ... )* funtion).
+- ToBase( base = 10[, precision=100] ) : convert to string.
+	- You can pass a base number to convert to, the default is base 10. The allowed bases are **2-62**. The values are **0-9** then **A-Z** then **a-z**
+	- You can use the precision to limit the number of decimals been returned in the string output.  
 - Abs() : Get the absolute value of the number
 - Trunc( precision ) : Truncate the number, strip the decimals. (+/-n.xyz = n)
 - Ceil( precision ) : Round the number up (2.1 = 3 / -2.1 = -2)

@@ -1482,5 +1482,218 @@ class TestFunctions extends PHPUnit_Framework_TestCase
     $z = $x->ToString();
     $this->assertSame("NaN", $z);
   }
+
+  public function testToBase2OfNotANumber()
+  {
+    $x = new \MyOddWeb\BigNumber(5);
+    $x->Div(0);
+    $this->assertTrue( $x->IsNan() );
+
+    $base = $x->ToBase(2);
+    $this->assertSame("NaN", $base);
+  }
+
+  public function testToBase2PostiveSmallIntegers()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(5);
+      $base = $x->ToBase(2);
+      $this->assertSame("101", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(1024);
+      $base = $x->ToBase(2);
+      $this->assertSame("10000000000", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(1023);
+      $base = $x->ToBase(2);
+      $this->assertSame("1111111111", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(6);
+      $base = $x->ToBase(2);
+      $this->assertSame("110", $base);
+    }
+  }
+
+  public function testToBase8PostiveSmallIntegers()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(140);
+      $base = $x->ToBase(8);
+      $this->assertSame("214", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(1024);
+      $base = $x->ToBase(8);
+      $this->assertSame("2000", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(1023);
+      $base = $x->ToBase(8);
+      $this->assertSame("1777", $base);
+    }
+  }
+
+  public function testToBase2NegativeSmallIntegers()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(-5);
+      $base = $x->ToBase(2);
+      $this->assertSame("-101", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(-6);
+      $base = $x->ToBase(2);
+      $this->assertSame("-110", $base);
+    }
+  }
+
+  public function testToBase16PostiveSmallIntegers()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(1023);
+      $base = $x->ToBase(16);
+      $this->assertSame("3FF", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(1024);
+      $base = $x->ToBase(16);
+      $this->assertSame("400", $base);
+    }
+  }
+
+  public function testToStringBase36PostiveSmallIntegers()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(35);
+      $base = $x->ToBase(36);
+      $this->assertSame("Z", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(36);
+      $base = $x->ToBase(36);
+      $this->assertSame("10", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(1023);
+      $base = $x->ToBase(36);
+      $this->assertSame("SF", $base);
+    }
+  }
+
+  public function testToBase62PostiveSmallIntegers()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(61);
+      $base = $x->ToBase(62);
+      $this->assertSame("z", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(62);
+      $base = $x->ToBase(62);
+      $this->assertSame("10", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(1023);
+      $base = $x->ToBase(62);
+      $this->assertSame("GV", $base);
+    }
+    {
+      $x = new \MyOddWeb\BigNumber(204789);
+      $base = $x->ToBase(62);
+      $this->assertSame("rH3", $base);
+    }
+  }
+
+  public function testCannotConvertToABaseGreaterThan62()
+  {
+    $x = new \MyOddWeb\BigNumber(1023);
+    $bigBase = (rand() % 32767) + 63;
+    $this->setExpectedException("\MyOddWeb\BigNumberException" );
+    $x->ToBase($bigBase);
+  }
+
+  public function testCannotConvertToBaseZero()
+  {
+    $x = new \MyOddWeb\BigNumber(1023);
+    $this->setExpectedException("\MyOddWeb\BigNumberException" );
+    $x->ToBase(0);
+  }
+
+  public function testCannotConvertToBaseOne()
+  {
+    $x = new \MyOddWeb\BigNumber(1023);
+    $this->setExpectedException("\MyOddWeb\BigNumberException" );
+    $x->ToBase(1);
+  }
+
+  public function testCannotConvertToBase63()
+  {
+    $x = new \MyOddWeb\BigNumber(1023);
+    $this->setExpectedException("\MyOddWeb\BigNumberException" );
+    $x->ToBase(63);
+  }
+
+  public function testToBase8PostiveFractionNumber()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(10.8);
+      $base = $x->ToBase(8, 2);
+      $this->assertSame("12.63", $base);
+    }
+  }
+
+  public function testToBase5PostiveFractionNumber()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(0.375);
+      $base = $x->ToBase(5, 4);
+      $this->assertSame("0.1414", $base);
+    }
+  }
+
+  public function testToBaseBase2PostiveFractionNumber()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(0.375);
+      $base = $x->ToBase(2, 10);
+      $this->assertSame("0.011", $base);
+    }
+  }
+
+  public function testToBasePrecisionLessThanNumberOfDecimals()
+  {
+    {
+      $x = new \MyOddWeb\BigNumber(0.375);
+      $base = $x->ToBase(10, 1);
+      $this->assertSame("0.3", $base);
+
+      $base = $x->ToBase(10, 2);
+      $this->assertSame("0.37", $base);
+
+      $base = $x->ToBase(10, 3);
+      $this->assertSame("0.375", $base);
+
+      $base = $x->ToBase(10, 10);
+      $this->assertSame("0.375", $base);
+    }
+
+    {
+      $x = new \MyOddWeb\BigNumber(1234.375);
+      $base = $x->ToBase(10, 1);
+      $this->assertSame("1234.3", $base);
+
+      $base = $x->ToBase(10, 2);
+      $this->assertSame("1234.37", $base);
+
+      $base = $x->ToBase(10, 3);
+      $this->assertSame("1234.375", $base);
+
+      $base = $x->ToBase(10, 10);
+      $this->assertSame("1234.375", $base);
+    }
+  }
 }
 ?>

@@ -51,17 +51,14 @@ function BigNumber()
 
 class BigNumber
 {
+  const BIGNUMBER_BASE = 10;
+  const BIGNUMBER_DEFAULT_PRECISION = 100;
+
   /**
    * All the numbers in our number.
    * @var bignumberiterator $_numebrs
    */
   protected $_numbers = null;
-
-  /**
-   * The base of the big number, (base 10, 2, 16 etc...)
-   * @var number $_base
-   */
-  protected $_base = 10;
 
   /**
    * If the number is negative or not.
@@ -150,7 +147,6 @@ class BigNumber
    */
   protected function _Copy( $src )
   {
-    $this->_base = $src->_base;
     $this->_decimals = $src->_decimals;
     $this->_nan = $src->_nan;
     $this->_neg = $src->_neg;
@@ -164,7 +160,6 @@ class BigNumber
    */
   protected function _Default()
   {
-    $this->_base = 10;
     $this->_neg = false;
     $this->_nan = false;
     $this->_zero = false;
@@ -522,7 +517,7 @@ class BigNumber
     // go around each number and re-create the integer.
     foreach ( array_reverse($this->_numbers->raw() ) as $c )
     {
-      $number = $number * $this->_base + $c;
+      $number = $number * self::BIGNUMBER_BASE + $c;
 
       // have we reached the decimal point?
       // if we have then we must stop now as all
@@ -557,27 +552,199 @@ class BigNumber
    */
   public function ToString()
   {
+    return $this->ToBase( self::BIGNUMBER_BASE, $this->_decimals );
+  }
+
+  /**
+   * Convert a big number to a string.
+   * @see http://mathbits.com/MathBits/CompSci/Introduction/frombase10.htm
+   * @param unsigned short the base we want to convert this number to.
+   * @param size_t precision the max precision we want to reach.
+   * @return std::string the converted number to a string.
+   */
+  public function ToBase( $base, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
+  {
     if ( $this->IsNan())
     {
       return "NaN";
+    }
+
+    if ($base > 62)
+    {
+      throw new BigNumberException("You cannot convert to a base greater than base 62");
+    }
+    if ($base <= 1)
+    {
+      throw new BigNumberException("You cannot convert to a base greater smaller than base 2");
+    }
+
+    // is it the correct base already?
+    if (self::BIGNUMBER_BASE == $base )
+    {
+      return static::_ToString( array_reverse( $this->_numbers->raw() ), $this->_decimals, $this->IsNeg(), $precision );
+    }
+
+    // the base is not the same, so we now have to rebuild it.
+    // in the 'correct' base.
+    // @see http://mathbits.com/MathBits/CompSci/Introduction/frombase10.htm
+    // @see http://www.mathpath.org/concepts/Num/frac.htm
+    $numbersInteger = [];
+    static::_ConvertIntegerToBase( $this, $numbersInteger, $base);
+
+    $numbersFrac = [];
+    static::_ConvertFractionToBase( $this, $numbersFrac, $base, $precision );
+
+    // we now need to join the two.
+    $numbersInteger = array_merge( $numbersFrac, $numbersInteger );
+
+    // no idea how to re-build that number.
+    return static::_ToString( array_reverse( $numbersInteger ),  count($numbersFrac), $this->IsNeg(), $precision );
+  }
+
+  /**
+   * Convert a number to a given base, (only the integer part).
+   * Convert the integer part of a number to the given base.
+   * @see http://mathbits.com/MathBits/CompSci/Introduction/frombase10.htm
+   * @see http://www.mathpath.org/concepts/Num/frac.htm
+   * @param BigNumber $givenNumber
+   * @param array[int] $numbers the container that will contain all the numbers, (array of unsigned char).
+   * @param number $base the base we are converting to.
+   */
+  static protected function _ConvertIntegerToBase( &$givenNumber, &$numbers, $base)
+  {
+    $numbers = [];
+    $resultInteger = BigNumber( $givenNumber )->Integer();
+    if ($resultInteger->IsZero())
+    {
+      // the integer part must have at least one number, 'zero' itself.
+      $numbers[] = 0;
+      return;
+    }
+
+    $bigNumberBase = new BigNumber( $base );
+
+    for (;;)
+    {
+      $quotient = new BigNumber();
+      $remainder = new BigNumber();
+      static::AbsQuotientAndRemainder( $resultInteger, $bigNumberBase, $quotient, $remainder);
+      $numbers[]  = $remainder->ToInt();
+
+      // are we done?
+      if ( $quotient->IsZero() )
+      {
+        break;
+      }
+      $resultInteger = $quotient;
+    }
+  }
+
+  /**
+   * Convert a number to a given base, (only the fractional part).
+   * Convert the fractional part of a number to the given base.
+   * @see http://mathbits.com/MathBits/CompSci/Introduction/frombase10.htm
+   * @see http://www.mathpath.org/concepts/Num/frac.htm
+   * @param BigNumber $givenNumber
+   * @param array[int] numbers the container that will contain all the numbers, (array of unsigned char).
+   * @param number $base the base we are converting to.
+   * @param number $precision the max presision we want to reach.
+   */
+  static protected function _ConvertFractionToBase
+  (
+      &$givenNumber,
+      &$numbers,
+      $base,
+      $precision
+  )
+  {
+    $numbers = [];
+    $resultFrac = BigNumber( $givenNumber)->Frac();
+    if ( $resultFrac->IsZero())
+    {
+      return;
+    }
+
+    $bigNumberBase = new BigNumber( $base );
+    $actualPrecision = 0;
+
+    for (;;)
+    {
+      //  have we reached a presision limit?
+      if ( $actualPrecision >= $precision)
+      {
+        break;
+      }
+
+      // the oresision we are at.
+      ++$actualPrecision;
+
+      // we have to use our multiplier so we don't have rounding issues.
+      // if we use double/float
+      $resultFrac = static::AbsMul( $resultFrac, $bigNumberBase, 1000 );
+
+      // the 'number' is the integer part.
+      $remainder = BigNumber( $resultFrac )->Integer();
+      $numbers[] = $remainder->ToInt();
+
+      // as long as the fractional part is not zero we can continue.
+      $resultFrac = BigNumber($resultFrac)->Frac();
+
+      // if it is zero, then we are done
+      if ( $resultFrac->IsZero())
+      {
+        break;
+      }
+    }
+
+    // we now need to reverse the array as this is the way all our numbers are.
+    $numbers = array_reverse( $numbers );
+  }
+
+
+  /**
+   * Convert a NUMBERS number to an integer.
+   * @param unsigned short the base we want to convert this number to.
+   * @param size_t precision the max presision we want to reach.
+   * @return std::string the converted number to a string.
+   */
+  static protected function _ToString( $numbers, $decimals, $isNeg, $precision )
+  {
+    $trimmedNumbers = $numbers;
+    if ($decimals > $precision)
+    {
+      $l = count($numbers);
+      $end = $decimals - $precision;
+      array_splice( $trimmedNumbers, $l - $end );
+      $decimals = $precision;
     }
 
     // the return number
     $number = "";
 
     // the total number of items.
-    $l = $this->_numbers->size();
+    $l = count($trimmedNumbers);
 
     // go around each number and re-create the integer.
-    foreach ( array_reverse($this->_numbers->raw() ) as $c )
+    foreach ( $trimmedNumbers as $c )
     {
-      $number .= strval((int)$c);
-      if (--$l - $this->_decimals == 0 && $l != 0 )  //  don't add it right at the end...
+      if ((int)$c <= 9)
+      {
+        $number .= strval((int)$c);
+      }
+      else if ((int)$c <= 36/*26+10*/)
+      {
+        $number .= chr( ord('A') + (int)$c - 10);
+      }
+      else if ((int)$c <= 62/*26+26+10*/)
+      {
+        $number .= chr( ord('a') + (int)$c - 36 );
+      }
+      if (--$l - $decimals == 0 && $l != 0 )  //  don't add it right at the end...
       {
         $number .= '.';
       }
     }
-    return $this->IsNeg() ? ('-' . $number) : $number;
+    return $isNeg ? ('-' . $number) : $number;
   }
 
   /**
@@ -981,7 +1148,7 @@ class BigNumber
       return;
     }
 
-    // muliply by _base means that we are shifting the multipliers.
+    // muliply by self::BIGNUMBER_BASE means that we are shifting the multipliers.
     while ( $this->_decimals > 0 && $multiplier > 0 )
     {
       --$this->_decimals;
@@ -1020,7 +1187,7 @@ class BigNumber
     }
 
     // if the max denominator is greater than the remained
-    // then we must devide by _base.
+    // then we must devide by self::BIGNUMBER_BASE.
     $compare = static::AbsCompare($max_denominator, $remainder);
     switch ( $compare )
     {
@@ -1032,7 +1199,7 @@ class BigNumber
         // we cannot subtract the max_denominator as it is greater than the remainder.
         // so we divide it so we can look for a smaller number.
       case 1:
-        // divide all by _base
+        // divide all by self::BIGNUMBER_BASE
         $max_denominator->DevideByBase(1);
         $base_multiplier->DevideByBase(1);
 
@@ -1074,13 +1241,6 @@ class BigNumber
     $denominator = static::FromValue($denominator);
     $quotient = static::FromValue($quotient);
     $remainder = static::FromValue($remainder);
-
-    // check if we can actually do this, it should work for all
-    // but we need to test it first...
-    if ($numerator->_base != 10 || $numerator->_base != $denominator->_base)
-    {
-      throw new BigNumberException( "This function was only tested with base 10!");
-    }
 
     // are we trying to divide by zero?
     if ($denominator->IsZero())
@@ -1229,7 +1389,7 @@ class BigNumber
    * @param size_t precision the presision we want to use.
    * @return BigNumber this number.
    */
-  public function Mul( $rhs, $precision = 100 )
+  public function Mul( $rhs, $precision= self::BIGNUMBER_DEFAULT_PRECISION )
   {
     $rhs = static ::FromValue($rhs);
 
@@ -1254,7 +1414,7 @@ class BigNumber
    * @param number $precision the max precision we wish to reache.
    * @return BigNumber this number devided.
    */
-  public function Div( $rhs, $precision = 100 )
+  public function Div( $rhs, $precision= self::BIGNUMBER_DEFAULT_PRECISION )
   {
     $rhs = static::FromValue($rhs);
 
@@ -1344,7 +1504,7 @@ class BigNumber
    * @param size_t precision the max precision to stop once the limit is reached.
    * @return BigNumber the product of the two numbers.
    */
-  protected static function AbsDiv( $lhs, $rhs, $precision = 100 )
+  protected static function AbsDiv( $lhs, $rhs, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
   {
     $lhs = static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
     $rhs = static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
@@ -1455,7 +1615,7 @@ class BigNumber
     $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
 
     // if we have more than one decimals then we have to shift everything
-    // by maxDecimals * _base
+    // by maxDecimals * self::BIGNUMBER_BASE
     // this will allow us to do the multiplication.
     if ($maxDecimals > 0 )
     {
@@ -1492,7 +1652,7 @@ class BigNumber
     //           = 75
     //           = 2*5             = 10 = push(0) carry_over = 1
     //           = 2*1+ccarry_over =  3 = push(3) carry_over = 0
-    //           = 30 * _base
+    //           = 30 * self::BIGNUMBER_BASE
     //           = 300+75=375
 
     // the two sizes
@@ -1527,19 +1687,19 @@ class BigNumber
 
         for ($z = 0; $z < $shift; ++$z )
         {
-          $s = $sum % $rhs->_base;
+          $s = $sum % self::BIGNUMBER_BASE;
           $numbers[] = $s;
 
-          $sum = (int)((int)$sum / (int)$rhs->_base);
+          $sum = (int)((int)$sum / (int)self::BIGNUMBER_BASE);
         }
       }
 
       // add the carry over if we have one
       while ($carryOver > 0)
       {
-        $s = $carryOver % $rhs->_base;
+        $s = $carryOver % self::BIGNUMBER_BASE;
         $numbers[] = $s;
-        $carryOver = (int)((int)$carryOver / (int)$rhs->_base);
+        $carryOver = (int)((int)$carryOver / (int)self::BIGNUMBER_BASE);
       }
 
       // shift everything
@@ -1571,11 +1731,10 @@ class BigNumber
       {
         continue;
       }
-      $number = ($number * $this->_base) + $this->_numbers->at( $pos );
+      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers->at( $pos );
     }
     return $number;
   }
-
 
   /**
    * Add 2 absolute numbers together.
@@ -1610,9 +1769,9 @@ class BigNumber
       $sum = $l + $r + $carryOver;
 
       $carryOver = 0;
-      if ($sum >= $lhs->_base)
+      if ($sum >= self::BIGNUMBER_BASE)
       {
-        $sum -= $lhs->_base;
+        $sum -= self::BIGNUMBER_BASE;
         $carryOver = 1;
       }
       $numbers[] = $sum;
@@ -1683,7 +1842,7 @@ class BigNumber
       $carryOver = 0;
       if ($sum < 0)
       {
-        $sum += $lhs->_base;
+        $sum += self::BIGNUMBER_BASE;
         $carryOver = 1;
       }
 
@@ -1741,7 +1900,7 @@ class BigNumber
    * @param size_t precision the precision we want to use.
    * @return BigNumber the factorial of this number.
    */
-  public function Factorial( $precision = 100 )
+  public function Factorial( $precision = self::BIGNUMBER_DEFAULT_PRECISION )
   {
     if ($this->IsNeg())
     {
@@ -1920,7 +2079,7 @@ class BigNumber
    * @param size_t precision the precision we want to limit this to.
    * @return BigNumber this number converted to a Degree number.
    */
-  public function ToDegree($precision = 100 )
+  public function ToDegree($precision = self::BIGNUMBER_DEFAULT_PRECISION )
   {
     if ($this->IsZero())
     {
@@ -1944,7 +2103,7 @@ class BigNumber
    * @param size_t precision the precision we want to limit this to.
    * @return BigNumber this number converted to a Radian number.
    */
-  public function ToRadian($precision = 100 )
+  public function ToRadian($precision = self::BIGNUMBER_DEFAULT_PRECISION )
   {
     if ($this->IsZero())
     {
@@ -1994,6 +2153,5 @@ class BigNumber
     // truncate and return, the sign is kept.
     return $this->PerformPostOperations( $this->_decimals );
   }
-
 }
 ?>
