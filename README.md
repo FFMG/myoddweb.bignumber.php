@@ -4,8 +4,21 @@ Based on the [myoddweb.bignumber.cpp project](https://github.com/FFMG/myoddweb.b
 
 # Usage #
 ## In your project ##
+### Composer ###
 
-Simply include the files and "src/BigNumber.h" and "src/BigNumber.cpp" in your project.    
+You can install this library using [Composer](https://getcomposer.org/ "Getcomposer").
+
+    {
+        "require": {
+            "ffmg/myoddweb.bignumber.php": "0.3.0.1"
+        }
+    }
+
+And then simply include "*MyOddweb\BigNumber\BigNumber.php*" in your script.
+
+### Direct download ###
+
+Simply include the file "path/to/code/BigNumber.php" in your project.    
 The other files are just testing and this project.
 
     // in your script
@@ -18,9 +31,13 @@ The other files are just testing and this project.
 
     // good times...
 
-## Example ##
+## Examples ##
 
+    // without composer 
     include "path/to/code/BigNumber.php"
+
+    // with composer
+    include "MyOddweb\BigNumber\BigNumber.php"
 
 ### Simple usage: ###
 

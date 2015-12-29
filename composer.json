@@ -1,7 +1,7 @@
 {
     "name": "ffmg/myoddweb.bignumber.php",
     "type": "library",
-    "description": "Logging for PHP 5.3",
+    "description": "Big number with no external dependencies",
     "keywords": ["bignumber","decimal", "number", "bignum"],
     "homepage": "https://github.com/FFMG/myoddweb.bignumber.php",
     "license": "GNU GENERAL PUBLIC LICENSE",
