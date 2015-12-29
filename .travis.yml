@@ -15,4 +15,4 @@ matrix:
     - php: 7
 
 script:
-  - ./vendor/bin/phpunit
+  - phpunit --bootstrap tests/phpunit.xml
