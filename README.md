@@ -10,11 +10,13 @@ You can install this library using [Composer](https://getcomposer.org/ "Getcompo
 
     {
         "require": {
-            "ffmg/myoddweb.bignumber.php": "0.3.0.1"
+            "ffmg/myoddweb.bignumber.php": "0.3.*"
         }
     }
 
-And then simply include "*MyOddweb\BigNumber\BigNumber.php*" in your script.
+And then simply include "*require_once "vendor/autoload.php"*" in your script, (or whatever path you use to composer).
+
+You can also browse the [package directly](https://packagist.org/packages/ffmg/myoddweb.bignumber.php).
 
 ### Direct download ###
 
