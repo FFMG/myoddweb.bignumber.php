@@ -4,7 +4,7 @@
     "description": "Big number with no external dependencies",
     "keywords": ["bignumber","decimal", "number", "bignum"],
     "homepage": "https://github.com/FFMG/myoddweb.bignumber.php",
-    "license": "GNU GENERAL PUBLIC LICENSE",
+    "license": "GPL-2.0",
     "authors": [
         {
             "name": "Florent Guelfucci",
