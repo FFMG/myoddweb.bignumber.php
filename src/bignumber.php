@@ -59,8 +59,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.01";
-  const BIGNUMBER_VERSION_NUMBER = 0001001;
+  const BIGNUMBER_VERSION        = "0.1.02";
+  const BIGNUMBER_VERSION_NUMBER = 0001002;
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1447,7 +1447,7 @@ class BigNumber
   /**
    * Substract a big number from this number.
    * @param const BigNumber rhs the number we want to substract.
-   * @return BigNumber *this number to allow chainning
+   * @return BigNumber this number to allow chainning
    */
   public function Sub($rhs)
   {
