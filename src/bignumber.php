@@ -39,7 +39,7 @@ class BigNumberException extends \Exception{};
 
 /**
  * Helper function to create a Bignumber without the need of calling new BigNumber( ... )
- * It also helps to allow chainning, (with the 'new' keyword you need to wrap the whole thing in brackets.
+ * It also helps to allow chaining, (with the 'new' keyword you need to wrap the whole thing in brackets.
  * Just call $x = BigNumber( 1234 )->Div( 100 )->ToString();
  * @return BigNumber the created BigNumber object.
  */
@@ -59,8 +59,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.03";
-  const BIGNUMBER_VERSION_NUMBER = 0001003;
+  const BIGNUMBER_VERSION        = "0.1.04";
+  const BIGNUMBER_VERSION_NUMBER = 0001004;
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1339,7 +1339,7 @@ class BigNumber
   /**
    * Add a big number to this number.
    * @param const BigNumber rhs the number we want to add.
-   * @return BigNumber *this number to allow chainning
+   * @return BigNumber *this number to allow chaining
    */
   public function Add( $rhs )
   {
@@ -1447,7 +1447,7 @@ class BigNumber
   /**
    * Substract a big number from this number.
    * @param const BigNumber rhs the number we want to substract.
-   * @return BigNumber this number to allow chainning
+   * @return BigNumber this number to allow chaining
    */
   public function Sub($rhs)
   {
