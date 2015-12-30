@@ -30,7 +30,7 @@
 //
 // Author: Florent Guelfucci
 
-require ( "src/bignumber.php" );
+require_once ( "src/bignumber.php" );
 
 class TestFunctions extends PHPUnit_Framework_TestCase
 {
