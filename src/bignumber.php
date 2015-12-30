@@ -51,6 +51,17 @@ function BigNumber()
 
 class BigNumber
 {
+/**
+ * The version number vMajor.vMinor.vBuild
+ * The derived version will try and follow that number.
+ * (X*1000000 + Y*1000 + Z)
+ *   #1   = major
+ *   #2-4 = minor
+ *   #5-7 = build
+ */
+  const BIGNUMBER_VERSION        = "0.1.01";
+  const BIGNUMBER_VERSION_NUMBER = 0001001;
+
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
 
