@@ -2,6 +2,11 @@
 A php bignumber class that does not have any external dependency.
 Based on the [myoddweb.bignumber.cpp project](https://github.com/FFMG/myoddweb.bignumber.cpp)
 
+## Status ##
+[![Build Status](https://travis-ci.org/FFMG/myoddweb.bignumber.php.svg?branch=master)](https://travis-ci.org/FFMG/myoddweb.classifier)
+[![Latest Stable Version](https://img.shields.io/packagist/v/ffmg/myoddweb.bignumber.php.svg?style=flat-square)](https://packagist.org/packages/ffmg/myoddweb.bignumber.php)
+![GitHub license](https://img.shields.io/badge/license-GPLv2-blue.svg)
+
 # Usage #
 ## In your project ##
 ### Composer ###
