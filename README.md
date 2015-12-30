@@ -15,7 +15,7 @@ You can install this library using [Composer](https://getcomposer.org/ "Getcompo
 
     {
         "require": {
-            "ffmg/myoddweb.bignumber.php": "0.3.*"
+            "ffmg/myoddweb.bignumber.php": "0.1.*"
         }
     }
 
