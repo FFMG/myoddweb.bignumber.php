@@ -59,8 +59,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.02";
-  const BIGNUMBER_VERSION_NUMBER = 0001002;
+  const BIGNUMBER_VERSION        = "0.1.03";
+  const BIGNUMBER_VERSION_NUMBER = 0001003;
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
