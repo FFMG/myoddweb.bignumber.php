@@ -32,7 +32,7 @@
 
 require_once ( "src/bignumber.php" );
 
-class TestAdd extends PHPUnit_Framework_TestCase
+class TestSub extends PHPUnit_Framework_TestCase
 {
   public function testSubstractNegativeNumber ()
   {
