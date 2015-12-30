@@ -30,7 +30,7 @@
 //
 // Author: Florent Guelfucci
 
-require ( dirname(__FILE__) . "\../src/bignumber.php" );
+require ( "src/bignumber.php" );
 
 class TestFunctions extends PHPUnit_Framework_TestCase
 {
