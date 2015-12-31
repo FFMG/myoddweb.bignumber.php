@@ -221,14 +221,22 @@ class BigNumberIterator implements \Iterator
    */
   public function push_back( $what )
   {
-    // validate this number
-    $this->ValidateNumber($what);
+    if( is_array( $what ))
+    {
+      $this->_numbers += $what;
+      $this->_size += count($what);
+    }
+    else
+    {
+      // validate this number
+      $this->ValidateNumber($what);
 
-    // add it at the end of the array
-    $this->_numbers[] = $what;
+      // add it at the end of the array
+      $this->_numbers[] = $what;
 
-    // the size has been updated
-    ++$this->_size;
+      // the size has been updated
+      ++$this->_size;
+    }
 
     // return the new size
     return $this->size();

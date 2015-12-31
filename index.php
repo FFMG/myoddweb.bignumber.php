@@ -20,9 +20,18 @@ use MyOddWeb\BigNumber;
 <?php
 include ( "src/bignumber.php" );
 
-$rad = \MyOddWeb\BigNumber( \MyOddWeb\BigNumber::pi() )->ToDegree(10);
-$x = $rad->ToString();
-echo $x;
+$time_pre = microtime(true);
+$numerator = new \MyOddWeb\BigNumber( "112345678901234567890123456789012345678901234567890" );
+$denominator = new \MyOddWeb\BigNumber( 5 );
+$quotient = 0;
+$remainder = 0;
+\MyOddWeb\BigNumber::QuotientAndRemainder($numerator, $denominator, $quotient, $remainder);
+$time_post = microtime(true);
+$exec_time = $time_post - $time_pre;
+echo "{$exec_time}ms<br>";
+
+echo $quotient->ToString();
+
 
 echo "<br />";
 echo "BigNumber rules!";

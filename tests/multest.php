@@ -363,7 +363,7 @@ class TestMul extends PHPUnit_Framework_TestCase
   {
     $x = \MyOddWeb\BigNumber ( "18446744073709551616" );
     $y = $x->Sqrt();
-    $z = $y->ToString(); //  4
+    $z = $y->ToString(); //  4294967296
     $this->assertSame("4294967296", $z);
   }
 

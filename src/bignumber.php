@@ -59,13 +59,14 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.05";
-  const BIGNUMBER_VERSION_NUMBER = 0001005;
+  const BIGNUMBER_VERSION        = "0.1.06";
+  const BIGNUMBER_VERSION_NUMBER = 0001006;
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
   const BIGNUMBER_MAX_LN_ITERATIONS = 200;
   const BIGNUMBER_MAX_EXP_ITERATIONS = 100;
+  const BIGNUMBER_MAX_ROOT_ITERATIONS = 100;
 
   /**
    * All the numbers in our number.
@@ -193,8 +194,34 @@ class BigNumber
       throw new BigNumberException( "This function expects a number." );
     }
 
-    // we can then part the string.
-    $this->_ParseString( strval($source) );
+    // positive
+    if( is_int($source))
+    {
+      // do the default
+      $this->_Default();
+
+      $neg = ($source < 0);
+      $source = abs($source);
+      while ($source > 0)
+      {
+        $s = $source % self::BIGNUMBER_BASE;
+        $this->_numbers->push_back($s);
+
+        // the next number
+        $source = (int)($source / self::BIGNUMBER_BASE);
+      }
+
+      // is negative.
+      $this->_neg = $neg;
+
+      // it is an integer...
+      $this->PerformPostOperations(0);
+    }
+    else
+    {
+      // we can then part the string.
+      $this->_ParseString( strval($source) );
+    }
   }
 
   /**
@@ -231,10 +258,7 @@ class BigNumber
     $this->_decimals = (int)$decimals;
 
     // add the numbers
-    foreach ( $numbers as $number )
-    {
-      $this->_numbers->push_back($number);
-    }
+    $this->_numbers->push_back($numbers);
 
     // clean it all up.
     $this->PerformPostOperations( $this->_decimals );
@@ -1189,6 +1213,7 @@ class BigNumber
    */
   static protected function _RecalcDenominator( $max_denominator, $base_multiplier, $remainder)
   {
+    // make sure that the value are /MyOddWeb/BigNumber
     $max_denominator = static::FromValue($max_denominator);
     $base_multiplier = static::FromValue($base_multiplier);
     $remainder = static::FromValue($remainder);
@@ -1265,7 +1290,7 @@ class BigNumber
     }
 
     // reset the quotient to 0.
-    $quotient = new BigNumber(0);
+    $quotient = BigNumberConstants::Zero();
 
     // and set the current remainder to be the numerator.
     // that way we know that we can return now something valid.
@@ -1309,10 +1334,10 @@ class BigNumber
       }
 
       // we can still remove this amount from the loop.
-      $remainder->Sub( $max_denominator);
+      $remainder = static::AbsSub( $remainder, $max_denominator);
 
       // and add the quotient.
-      $quotient->Add( $base_multiplier);
+      $quotient = static::AbsAdd( $quotient, $base_multiplier);
     }
 
     for (;;)
@@ -1930,8 +1955,8 @@ class BigNumber
     }
 
     // copy the base and exponent and make sure that they are positive.
-    $copyBase = $base; $copyBase->Abs();
-    $copyExp = $exp; $copyExp->Abs();
+    $copyBase = clone $base; $copyBase->Abs();
+    $copyExp = clone $exp; $copyExp->Abs();
 
     // the current result.
     $result = BigNumberConstants::One();
@@ -2291,7 +2316,7 @@ class BigNumber
 
     while ( $this->Compare(0.8) < 0)
     {
-      Mul(1.8, BigNumberConstants::PrecisionPadding( $precision));
+      $this->Mul(1.8, BigNumberConstants::PrecisionPadding( $precision));
       ++$counter8;
     }
     while ( $this->Compare( BigNumberConstants::Two() ) > 0)
@@ -2461,6 +2486,145 @@ class BigNumber
     }
 
     // clean up and return.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * Calculate the square root of this number
+   * @see http://mathworld.wolfram.com/SquareRoot.html
+   * @see http://brownmath.com/alge/expolaws.htm
+   * @param number precision the number of decimals.
+   * @return BigNumber this number square root.
+   */
+  public function Sqrt( $precision = self::BIGNUMBER_DEFAULT_PRECISION )
+  {
+    // get the nroot=2
+    // sqrt = x ^ (1 / 2)
+    return $this->Root( BigNumberConstants::Two(), $precision);
+  }
+
+  /**
+   * Calculate the nth root using the Newton alorithm
+   * @see https://en.wikipedia.org/wiki/Nth_root_algorithm
+   * @see https://en.wikipedia.org/wiki/Newton%27s_method
+   * @param BigNumber $nthroot the nth root we want to calculate.
+   * @param number $precision the number of decimals.
+   * @return BigNumber this numbers nth root.
+   */
+  protected function RootNewton( $nthroot, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
+  {
+    if ( $this->Compare( BigNumberConstants::One() ) == 0)
+    {
+      $this->_Copy( BigNumberConstants::One() );
+      return $this;
+    }
+
+    // the padded precision so we do not, slowly, loose our final precision.
+    $padded_precision = BigNumberConstants::PrecisionPadding($precision);
+
+    // copy this number variable so it is easier to read.
+    $x = clone $this;
+
+    // values used a lot
+    $r_less_one = BigNumber($nthroot)->Sub( BigNumberConstants::One() );
+    $one_over_r = BigNumber(BigNumberConstants::One())->Div( $nthroot, $padded_precision);
+
+    // calculate this over and over again.
+    for ( $i = 0; $i < self::BIGNUMBER_MAX_ROOT_ITERATIONS; ++$i )
+    {
+      //  y = n / pow( x, r_less_one)
+      $y1 = BigNumber($x)->Pow($r_less_one, $padded_precision);
+      $y = BigNumber($this)->Div($y1, $padded_precision);
+
+      // x = one_over_r *(r_less_one * x +  y);
+      $x_temp = BigNumber($one_over_r)->Mul( BigNumber($r_less_one)->Mul($x, $padded_precision)->Add($y), $padded_precision);
+
+      // if the calculation we just did, did not really change anything
+      // it means that we can stop here, there is no point in trying
+      // to refine this any further.
+      if ($x_temp->Compare($x) == 0)
+      {
+        break;
+      }
+
+      // set *this to the the updated value.
+      $x = clone $x_temp;
+    }
+
+    // set the value.
+    $this->_Copy( $x->Round($precision) );
+
+    // clean up.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * Calculate the nth root of this number
+   * @see http://www.mathwords.com/r/radical_rules.htm
+   * @param BigNumber $nthroot the nth root we want to calculate.
+   * @param number $precision the number of decimals.
+   * @return BigNumber this numbers nth root.
+   */
+  public function Root( $nthroot, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
+  {
+    // make sure that the number is a BigNumber
+    $nthroot = static::FromValue($nthroot);
+
+    // sanity checks, even nthroots cannot get negative nuber
+    // Root( 4, -24 ) is not posible as nothing x * x * x  * x can give a negative result
+    if ($this->IsNeg() && $nthroot->IsEven() )
+    {
+      // sqrt(-x) == NaN
+      $this->_Copy( new BigNumber("NaN") );
+
+      // all done
+      return $this->PerformPostOperations( $precision );
+    }
+
+    // the nth root cannot be zero.
+    if ( $nthroot->IsZero() )
+    {
+      // sqrt(-x) == NaN
+      $this->_Copy( new BigNumber("NaN") );
+
+      // all done
+      return $this->PerformPostOperations( $precision );
+    }
+
+    // if the number is zero than this is unchanged.
+    // because for x*x*x = 0 then x = 0
+    if ( $this->IsZero() )
+    {
+      // sqrt(0) == 0 and we are already zero...
+      return $this->PerformPostOperations( $precision );
+    }
+
+    // if the number is one, then this number is one.
+    // it has to be as only 1*1 = 1 is the only posibility is.
+    if ( $this->Compare( BigNumberConstants::One() ) == 0)
+    {
+      $this->_Copy( BigNumberConstants::One() );
+    }
+    else
+    {
+      // try and use some of the shortcuts...
+      if ( $this->IsInteger())
+      {
+        return $this->RootNewton( $nthroot, $precision);
+      }
+
+      // try and use the power of...
+      // nthroot = x^( 1/nthroot)
+      $number_one_over = BigNumber( BigNumberConstants::One() )->Div( $nthroot, BigNumberConstants::PrecisionPadding($precision));
+
+      // calculate it, use the correction to make sure we are well past
+      // the actual value we want to set is as.
+      // the rounding will then take care of the rest.
+      $this->_Copy( $this->Pow( $number_one_over, BigNumberConstants::PrecisionPadding($precision))->Round( $precision ) );
+    }
+
+    // return this/cleaned up.
+    // we already truncated it.
     return $this->PerformPostOperations( $precision );
   }
 }
