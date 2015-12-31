@@ -59,11 +59,13 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.04";
-  const BIGNUMBER_VERSION_NUMBER = 0001004;
+  const BIGNUMBER_VERSION        = "0.1.05";
+  const BIGNUMBER_VERSION_NUMBER = 0001005;
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
+  const BIGNUMBER_MAX_LN_ITERATIONS = 200;
+  const BIGNUMBER_MAX_EXP_ITERATIONS = 100;
 
   /**
    * All the numbers in our number.
@@ -1905,6 +1907,70 @@ class BigNumber
   }
 
   /**
+   * Calculate the power of 'base' raised to 'exp' or x^y, (base^exp)
+   * @param BigNumber $base the base we want to raise.
+   * @param BigNumber $exp the exponent we are raising the base to.
+   * @param number $precision the precision we want to use.
+   * @return BigNumber the base raised to the exp.
+   */
+  static protected function AbsPow( $base, $exp, $precision)
+  {
+    $base = static::FromValue($base);
+    $exp = static::FromValue($exp);
+
+    if( $exp->IsZero() )
+    {
+      return BigNumberConstants::One();
+    }
+
+    // +ve 1 exp = x
+    if ( static::AbsCompare( $exp, BigNumberConstants::One() ) == 0 )
+    {
+      return $base;
+    }
+
+    // copy the base and exponent and make sure that they are positive.
+    $copyBase = $base; $copyBase->Abs();
+    $copyExp = $exp; $copyExp->Abs();
+
+    // the current result.
+    $result = BigNumberConstants::One();
+
+    // if we have decimals, we need to do it the hard/long way...
+    if ( $copyExp->_decimals > 0)
+    {
+      $copyBase->Ln(BigNumberConstants::PrecisionPadding($precision)); //  we need the correction, do we don't loose it too quick.
+      $copyBase->Mul( $copyExp, BigNumberConstants::PrecisionPadding($precision));
+      $result = $copyBase->Exp(BigNumberConstants::PrecisionPadding($precision));
+    }
+    else
+    {
+      // until we reach zero.
+      while (!$copyExp->IsZero())
+      {
+        // if it is odd...
+        if ($copyExp->IsOdd())
+        {
+          $result = static::AbsMul( $result, $copyBase, BigNumberConstants::PrecisionPadding($precision));
+        }
+
+        // divide by 2 with no decimal places.
+        $copyExp = static::AbsDiv( $copyExp, BigNumberConstants::Two(), 0);
+        if ( $copyExp->IsZero() )
+        {
+          break;
+        }
+
+        // multiply the base by itself.
+        $copyBase = static::AbsMul( $copyBase, $copyBase, BigNumberConstants::PrecisionPadding($precision));
+      }
+    }
+
+    // clean up and return
+    return $result->PerformPostOperations( $precision );
+  }
+
+  /**
    * Calculate the factorial of a non negative number
    * 5! = 5x4x3x2x1 = 120
    * @see https://en.wikipedia.org/wiki/Factorial
@@ -1954,7 +2020,7 @@ class BigNumber
   /**
    * Truncate the number
    * @param size_t precision the max number of decimals.
-   * @return const BigNumber the truncated number.
+   * @return BigNumber the truncated number.
    */
   public function Trunc( $precision = 0 )
   {
@@ -2163,6 +2229,239 @@ class BigNumber
 
     // truncate and return, the sign is kept.
     return $this->PerformPostOperations( $this->_decimals );
+  }
+
+  /**
+   * Raise this number to the given exponent.
+   * @see http://brownmath.com/alge/expolaws.htm
+   * @param BigNumber $exp the exponent.
+   * @param number $precision the precision we want to use.
+   * @return BigNumber this number.
+   */
+  public function Pow( $exp, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
+  {
+    $exp = static::FromValue($exp);
+
+    // just multiply
+    $this->_Copy( static::AbsPow( $this, $exp, $precision ) );
+
+    // if the exponent is negative
+    // then we need to divide.
+    if ($exp->IsNeg())
+    {
+      // x^(-y) = 1/^|y|
+      $this->_Copy( (new BigNumber( BigNumberConstants::One() ))->Div( $this, $precision ));
+    }
+
+    // return this/cleaned up.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * @see http://stackoverflow.com/questions/4657468/fast-fixed-point-pow-log-exp-and-sqrt
+   * @see http://www.convict.lu/Jeunes/ultimate_stuff/exp_ln_2.htm
+   * @see http://www.netlib.org/cephes/qlibdoc.html#qlog
+   * @see https://en.wikipedia.org/wiki/Logarithm
+   * Get the logarithm function of the current function.
+   * @param number $precision the max number of decimals.
+   * @return BigNumber this number base 10 log.
+   */
+  public function Ln( $precision = self::BIGNUMBER_DEFAULT_PRECISION )
+  {
+    // sanity checks
+    if ( $this->IsNeg())
+    {
+      $this->_Copy( new BigNumber("NaN") );
+      return $this->PerformPostOperations( $precision );
+    }
+
+    //  if this is 1 then log 1 is zero.
+    if ( $this->Compare( BigNumberConstants::One() ) == 0 )
+    {
+      $this->_Copy( BigNumberConstants::Zero() );
+      return $this->PerformPostOperations( $precision );
+    }
+
+    // @see https://www.quora.com/How-can-we-calculate-the-logarithms-by-hand-without-using-any-calculatorhttps://www.quora.com/How-can-we-calculate-the-logarithms-by-hand-without-using-any-calculator
+    // @see https://www.mathsisfun.com/algebra/logarithms.html
+
+    $counter1 = 0;
+    $counter2 = 0;
+    $counter8 = 0;
+
+    while ( $this->Compare(0.8) < 0)
+    {
+      Mul(1.8, BigNumberConstants::PrecisionPadding( $precision));
+      ++$counter8;
+    }
+    while ( $this->Compare( BigNumberConstants::Two() ) > 0)
+    {
+      $this->Div(BigNumberConstants::Two(), BigNumberConstants::PrecisionPadding($precision));
+      ++$counter2;
+    }
+    while ($this->Compare(1.1) > 0)
+    {
+      $this->Div(1.1, BigNumberConstants::PrecisionPadding($precision));
+      ++$counter1;
+    }
+
+    //  we must make sure that *is
+    $base = BigNumber($this)->Sub( BigNumberConstants::One() ); // Base of the numerator; exponent will be explicit
+    $den = BigNumberConstants::One();                           // Denominator of the nth term
+    $neg = false;                     // start positive.
+
+    //                  (x-1)^2    (x-1)^3   (x-1)^4
+    // ln(x) = (x-1) - --------- + ------- - ------- ...
+    //                     2          3         4
+    $result = new BigNumber( $base );            // Kick it off
+    $baseRaised = new BigNumber( $base );
+    for ( $i = 0; $i < self::BIGNUMBER_MAX_LN_ITERATIONS; ++$i )
+    {
+      // next denominator
+      $den->Add(BigNumberConstants::One() );
+
+      // swap operation
+      $neg = !$neg;
+
+      // the denominator+power is the same thing
+      $baseRaised->Mul( $base, BigNumberConstants::PrecisionPadding($precision));
+
+      // now divide it
+      $currentBase = BigNumber( $baseRaised )->Div( $den, BigNumberConstants::PrecisionPadding($precision));
+
+      // there is no need to go further, with this precision
+      // and with this number of iterations we will keep adding/subtracting zeros.
+      if ( $currentBase->IsZero())
+      {
+        break;
+      }
+
+      // and add it/subtract it from the result.
+      if ($neg)
+      {
+        $result->Sub( $currentBase );
+      }
+      else
+      {
+        $result->Add( $currentBase );
+      }
+    }
+
+    // log rules are... ln(ab) = ln(a) + ln(b)
+    if ( $counter1 > 0)
+    {
+      // "0.0953101798043248600439521232807650922206053653086441991852398081630010142358842328390575029130364930727479418458517498888460436935129806386890150217023263755687346983551204157456607731117050481406611584967219092627683199972666804124629171163211396201386277872575289851216418802049468841988934550053918259553296705084248072320206243393647990631942365020716424972582488628309770740635849277971589257686851592941134955982468458204470563781108676951416362518738052421687452698243540081779470585025890580291528650263570516836272082869034439007178525831485094480503205465208833580782304569935437696233763597527612962802333"
+      $ln11 = new BigNumber( [3,3,3,2,0,8,2,6,9,2,1,6,7,2,5,7,9,5,3,6,7,3,3,2,6,9,6,7,3,4,5,3,9,9,6,5,4,0,3,2,8,7,0,8,5,3,3,8,8,0,2,5,6,4,5,0,2,3,0,5,0,8,4,4,9,0,5,8,4,1,3,8,5,2,5,8,7,1,7,0,0,9,3,4,4,3,0,9,6,8,2,8,0,2,7,2,6,3,8,6,1,5,0,7,5,3,6,2,0,5,6,8,2,5,1,9,2,0,8,5,0,9,8,5,2,0,5,8,5,0,7,4,9,7,7,1,8,0,0,4,5,3,4,2,8,9,6,2,5,4,7,8,6,1,2,4,2,5,0,8,3,7,8,1,5,2,6,3,6,1,4,1,5,9,6,7,6,8,0,1,1,8,7,3,6,5,0,7,4,4,0,2,8,5,4,8,6,4,2,8,9,5,5,9,4,3,1,1,4,9,2,9,5,1,5,8,6,8,6,7,5,2,9,8,5,1,7,9,7,7,2,9,4,8,5,3,6,0,4,7,0,7,7,9,0,3,8,2,6,8,8,4,2,8,5,2,7,9,4,2,4,6,1,7,0,2,0,5,6,3,2,4,9,1,3,6,0,9,9,7,4,6,3,9,3,3,4,2,6,0,2,0,2,3,2,7,0,8,4,2,4,8,0,5,0,7,6,9,2,3,5,5,9,5,2,8,1,9,3,5,0,0,5,5,4,3,9,8,8,9,1,4,8,8,6,4,9,4,0,2,0,8,8,1,4,6,1,2,1,5,8,9,8,2,5,7,5,2,7,8,7,7,2,6,8,3,1,0,2,6,9,3,1,1,2,3,6,1,1,7,1,9,2,6,4,2,1,4,0,8,6,6,6,2,7,9,9,9,1,3,8,6,7,2,6,2,9,0,9,1,2,7,6,9,4,8,5,1,1,6,6,0,4,1,8,4,0,5,0,7,1,1,1,3,7,7,0,6,6,5,4,7,5,1,4,0,2,1,5,5,3,8,9,6,4,3,7,8,6,5,5,7,3,6,2,3,2,0,7,1,2,0,5,1,0,9,8,6,8,3,6,0,8,9,2,1,5,3,9,6,3,4,0,6,4,8,8,8,8,9,4,7,1,5,8,5,4,8,1,4,9,7,4,7,2,7,0,3,9,4,6,3,0,3,1,9,2,0,5,7,5,0,9,3,8,2,3,2,4,8,8,5,3,2,4,1,0,1,0,0,3,6,1,8,0,8,9,3,2,5,8,1,9,9,1,4,4,6,8,0,3,5,6,3,5,0,6,0,2,2,2,9,0,5,6,7,0,8,2,3,2,1,2,5,9,3,4,0,0,6,8,4,2,3,4,0,8,9,7,1,0,1,3,5,9,0,0 ], 616, false);
+      $ln11->Mul( $counter1, BigNumberConstants::PrecisionPadding($precision));
+      $result->Add( $ln11 );
+    }
+
+    // log rules are... ln(ab) = ln(a) + ln(b)
+    if ( $counter2 > 0 )
+    {
+      // "0.693147180559945309417232121458176568075500134360255254120680009493393621969694715605863326996418687542001481020570685733685520235758130557032670751635075961930727570828371435190307038623891673471123350115364497955239120475172681574932065155524734139525882950453007095326366642654104239157814952043740430385500801944170641671518644712839968171784546957026271631064546150257207402481637773389638550695260668341137273873722928956493547025762652098859693201965058554764703306793654432547632744951250406069438147104689946506220167720424524529612687946546193165174681392672504103802546259656869144192871608293803172714368"
+      $ln2 = new BigNumber([8,6,3,4,1,7,2,7,1,3,0,8,3,9,2,8,0,6,1,7,8,2,9,1,4,4,1,9,6,8,6,5,6,9,5,2,6,4,5,2,0,8,3,0,1,4,0,5,2,7,6,2,9,3,1,8,6,4,7,1,5,6,1,3,9,1,6,4,5,6,4,9,7,8,6,2,1,6,9,2,5,4,2,5,4,2,4,0,2,7,7,6,1,0,2,2,6,0,5,6,4,9,9,8,6,4,0,1,7,4,1,8,3,4,9,6,0,6,0,4,0,5,2,1,5,9,4,4,7,2,3,6,7,4,5,2,3,4,4,5,6,3,9,7,6,0,3,3,0,7,4,6,7,4,5,5,8,5,0,5,6,9,1,0,2,3,9,6,9,5,8,8,9,0,2,5,6,2,6,7,5,2,0,7,4,5,3,9,4,6,5,9,8,2,9,2,2,7,3,7,8,3,7,2,7,3,1,1,4,3,8,6,6,0,6,2,5,9,6,0,5,5,8,3,6,9,8,3,3,7,7,7,3,6,1,8,4,2,0,4,7,0,2,7,5,2,0,5,1,6,4,5,4,6,0,1,3,6,1,7,2,6,2,0,7,5,9,6,4,5,4,8,7,1,7,1,8,6,9,9,3,8,2,1,7,4,4,6,8,1,5,1,7,6,1,4,6,0,7,1,4,4,9,1,0,8,0,0,5,5,8,3,0,3,4,0,4,7,3,4,0,2,5,9,4,1,8,7,5,1,9,3,2,4,0,1,4,5,6,2,4,6,6,6,3,6,2,3,5,9,0,7,0,0,3,5,4,0,5,9,2,8,8,5,2,5,9,3,1,4,3,7,4,2,5,5,5,1,5,6,0,2,3,9,4,7,5,1,8,6,2,7,1,5,7,4,0,2,1,9,3,2,5,5,9,7,9,4,4,6,3,5,1,1,0,5,3,3,2,1,1,7,4,3,7,6,1,9,8,3,2,6,8,3,0,7,0,3,0,9,1,5,3,4,1,7,3,8,2,8,0,7,5,7,2,7,0,3,9,1,6,9,5,7,0,5,3,6,1,5,7,0,7,6,2,3,0,7,5,5,0,3,1,8,5,7,5,3,2,0,2,5,5,8,6,3,3,7,5,8,6,0,7,5,0,2,0,1,8,4,1,0,0,2,4,5,7,8,6,8,1,4,6,9,9,6,2,3,3,6,8,5,0,6,5,1,7,4,9,6,9,6,9,1,2,6,3,9,3,3,9,4,9,0,0,0,8,6,0,2,1,4,5,2,5,5,2,0,6,3,4,3,1,0,0,5,5,7,0,8,6,5,6,7,1,8,5,4,1,2,1,2,3,2,7,1,4,9,0,3,5,4,9,9,5,5,0,8,1,7,4,1,3,9,6,0], 615, false);
+      $ln2->Mul( $counter2, BigNumberConstants::PrecisionPadding($precision));
+      $result->Add($ln2);
+    }
+
+    // log rules are... ln(ab) = ln(a) + ln(b)
+    if ($counter8 > 0 )
+    {
+      // "0.587786664902119008189731140618863769769379761376981181556740775800809598729560169117097631534284566775973755110200168585012003222536363442471987124070849093654145900869579488705254541486380394750214985439990943264901458147307801981343725602329350916457819213072437061657645370725998495814483186568232484236059984884946504043108616216273293809193522251042201711480828917893925532893803444719889512011504399314051421418444171441064659998892289089035003091141787128108024952008593307276614322356640449112819566260840792601819695518817384830430694637551056654910817069372465364862878039189497360001395678426943344493527"
+      $ln18 = new BigNumber( [7,2,5,3,9,4,4,4,3,3,4,9,6,2,4,8,7,6,5,9,3,1,0,0,0,6,3,7,9,4,9,8,1,9,3,0,8,7,8,2,6,8,4,6,3,5,6,4,2,7,3,9,6,0,7,1,8,0,1,9,4,5,6,6,5,0,1,5,5,7,3,6,4,9,6,0,3,4,0,3,8,4,8,3,7,1,8,8,1,5,5,9,6,9,1,8,1,0,6,2,9,7,0,4,8,0,6,2,6,6,5,9,1,8,2,1,1,9,4,4,0,4,6,6,5,3,2,2,3,4,1,6,6,7,2,7,0,3,3,9,5,8,0,0,2,5,9,4,2,0,8,0,1,8,2,1,7,8,7,1,4,1,1,9,0,3,0,0,5,3,0,9,8,0,9,8,2,2,9,8,8,9,9,9,5,6,4,6,0,1,4,4,1,7,1,4,4,4,8,1,4,1,2,4,1,5,0,4,1,3,9,9,3,4,0,5,1,1,0,2,1,5,9,8,8,9,1,7,4,4,4,3,0,8,3,9,8,2,3,5,5,2,9,3,9,8,7,1,9,8,2,8,0,8,4,1,1,7,1,0,2,2,4,0,1,5,2,2,2,5,3,9,1,9,0,8,3,9,2,3,7,2,6,1,2,6,1,6,8,0,1,3,4,0,4,0,5,6,4,9,4,8,8,4,8,9,9,5,0,6,3,2,4,8,4,2,3,2,8,6,5,6,8,1,3,8,4,4,1,8,5,9,4,8,9,9,5,2,7,0,7,3,5,4,6,7,5,6,1,6,0,7,3,4,2,7,0,3,1,2,9,1,8,7,5,4,6,1,9,0,5,3,9,2,3,2,0,6,5,2,7,3,4,3,1,8,9,1,0,8,7,0,3,7,4,1,8,5,4,1,0,9,4,6,2,3,4,9,0,9,9,9,3,4,5,8,9,4,1,2,0,5,7,4,9,3,0,8,3,6,8,4,1,4,5,4,5,2,5,0,7,8,8,4,9,7,5,9,6,8,0,0,9,5,4,1,4,5,6,3,9,0,9,4,8,0,7,0,4,2,1,7,8,9,1,7,4,2,4,4,3,6,3,6,3,5,2,2,2,3,0,0,2,1,0,5,8,5,8,6,1,0,0,2,0,1,1,5,5,7,3,7,9,5,7,7,6,6,5,4,8,2,4,3,5,1,3,6,7,9,0,7,1,1,9,6,1,0,6,5,9,2,7,8,9,5,9,0,8,0,0,8,5,7,7,0,4,7,6,5,5,1,8,1,1,8,9,6,7,3,1,6,7,9,7,3,9,6,7,9,6,7,3,6,8,8,1,6,0,4,1,1,3,7,9,8,1,8,0,0,9,1,1,2,0,9,4,6,6,6,8,7,7,8,5,0], 615, false);
+      $ln18->Mul( $counter8, BigNumberConstants::PrecisionPadding($precision));
+      $result->Sub( $ln18 );
+    }
+
+    // done
+    $this->_Copy( $result );
+
+    // clean up and done.
+    return $this->PerformPostOperations( $precision );
+  }
+
+  /**
+   * Raise e to the power of this.
+   * @param number $precision the precision we want to return this to (default = DEFAULT_PRECISION).
+   * @return BigNumber e raised to the power of *this.
+   */
+  public function Exp( $precision = self::BIGNUMBER_DEFAULT_PRECISION)
+  {
+    // shortcut
+    if ( $this->IsZero())
+    {
+      // reset this to 1
+      $this->_Copy( BigNumberConstants::One() );
+
+      //  done
+      return $this->PerformPostOperations( $precision );
+    }
+
+    // get the integer part of the number.
+    $integer = new BigNumber($this);
+    $integer->Integer();
+
+    // now get the decimal part of the number
+    $fraction = new BigNumber($this);
+    $fraction->Frac();
+
+    // reset this to 1
+    $this->_Copy( BigNumberConstants::One() );
+
+    // the two sides of the equation
+    // the whole number.
+    if ( $integer-> IsZero())
+    {
+      // get the value of e
+      $e = BigNumberConstants::e();
+
+      // truncate the precision so we do not do too many multiplications.
+      // add a bit of room for more accurate precision.
+      $e->Trunc(BigNumberConstants::PrecisionPadding($precision));
+
+      //  then raise it.
+      $this->_Copy( $e->Pow( $integer, BigNumberConstants::PrecisionPadding($precision)) );
+    }
+
+    if (!$fraction->IsZero())
+    {
+      //     x^1   x^2   x^3
+      // 1 + --- + --- + --- ...
+      //      1!    2!    3!
+      $fact = new BigNumber( BigNumberConstants::One() );
+      $base = new BigNumber( $fraction );
+      $power = new BigNumber( $base );
+
+      $result = BigNumberConstants::One();
+      for ( $i = 1; $i < self::BIGNUMBER_MAX_EXP_ITERATIONS; ++$i )
+      {
+        //  calculate the number up to the precision we are after.
+        $calulatedNumber = BigNumber( $power )->Div( $fact, BigNumberConstants::PrecisionPadding($precision));
+        if ( $calulatedNumber->IsZero() )
+        {
+          break;
+        }
+
+        // add it to our number.
+        $result->Add( $calulatedNumber );
+
+        // x * x * x ...
+        $power = $power->Mul( $base, BigNumberConstants::PrecisionPadding($precision));
+
+        //  1 * 2 * 3 ...
+        $fact = $fact->Mul( (int)($i+1), BigNumberConstants::PrecisionPadding($precision));
+      }
+
+      //  the decimal part of the number.
+      $fraction = $result;
+
+      // multiply the decimal number with the fraction.
+      $this->Mul( $fraction, BigNumberConstants::PrecisionPadding($precision));
+    }
+
+    // clean up and return.
+    return $this->PerformPostOperations( $precision );
   }
 }
 ?>
