@@ -59,8 +59,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.06";
-  const BIGNUMBER_VERSION_NUMBER = 0001006;
+  const BIGNUMBER_VERSION        = "0.1.07";
+  const BIGNUMBER_VERSION_NUMBER = 0001007;
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -2436,7 +2436,7 @@ class BigNumber
 
     // the two sides of the equation
     // the whole number.
-    if ( $integer-> IsZero())
+    if (!$integer->IsZero())
     {
       // get the value of e
       $e = BigNumberConstants::e();
@@ -2454,7 +2454,7 @@ class BigNumber
       //     x^1   x^2   x^3
       // 1 + --- + --- + --- ...
       //      1!    2!    3!
-      $fact = new BigNumber( BigNumberConstants::One() );
+      $fact = BigNumberConstants::One();
       $base = new BigNumber( $fraction );
       $power = new BigNumber( $base );
 
@@ -2472,10 +2472,10 @@ class BigNumber
         $result->Add( $calulatedNumber );
 
         // x * x * x ...
-        $power = $power->Mul( $base, BigNumberConstants::PrecisionPadding($precision));
+        $power->Mul( $base, BigNumberConstants::PrecisionPadding($precision));
 
         //  1 * 2 * 3 ...
-        $fact = $fact->Mul( (int)($i+1), BigNumberConstants::PrecisionPadding($precision));
+        $fact->Mul( (int)($i+1), BigNumberConstants::PrecisionPadding($precision));
       }
 
       //  the decimal part of the number.
