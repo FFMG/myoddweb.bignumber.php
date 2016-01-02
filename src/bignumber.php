@@ -41,7 +41,7 @@ class BigNumberException extends \Exception{};
  * Helper function to create a Bignumber without the need of calling new BigNumber( ... )
  * It also helps to allow chaining, (with the 'new' keyword you need to wrap the whole thing in brackets.
  * Just call $x = BigNumber( 1234 )->Div( 100 )->ToString();
- * @return BigNumber the created BigNumber object.
+ * @return \MyOddWeb\BigNumber the created BigNumber object.
  */
 function BigNumber()
 {
@@ -59,8 +59,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.07";
-  const BIGNUMBER_VERSION_NUMBER = 0001007;
+  const BIGNUMBER_VERSION        = "0.1.08";
+  const BIGNUMBER_VERSION_NUMBER = 0001008;
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -822,8 +822,8 @@ class BigNumber
   static protected function AbsCompare( $lhs, $rhs)
   {
     // make sure that they are big numbers.
-    $lhs = static::FromValue($lhs);
-    $rhs = static::FromValue($rhs);
+    $lhs = clone static::FromValue($lhs);
+    $rhs = clone static::FromValue($rhs);
 
     $ll = $lhs->_numbers->size();
     $rl = $rhs->_numbers->size();
@@ -1275,8 +1275,8 @@ class BigNumber
    */
   static protected function AbsQuotientAndRemainder($numerator, $denominator, &$quotient, &$remainder)
   {
-    $numerator = static::FromValue($numerator);
-    $denominator = static::FromValue($denominator);
+    $numerator = clone static::FromValue($numerator);
+    $denominator = clone static::FromValue($denominator);
     $quotient = static::FromValue($quotient);
     $remainder = static::FromValue($remainder);
 
@@ -1424,7 +1424,7 @@ class BigNumber
   /**
    * Multiply this number to the given number.
    * @param const BigNumber the number we are multiplying to.
-   * @param size_t precision the presision we want to use.
+   * @param size_t precision the precision we want to use.
    * @return BigNumber this number.
    */
   public function Mul( $rhs, $precision= self::BIGNUMBER_DEFAULT_PRECISION )
@@ -1544,8 +1544,8 @@ class BigNumber
    */
   protected static function AbsDiv( $lhs, $rhs, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
   {
-    $lhs = static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
-    $rhs = static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
+    $lhs = clone static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
+    $rhs = clone static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
 
     // lhs / 0 = nan
     if ( $rhs->IsZero())
@@ -1629,8 +1629,8 @@ class BigNumber
    */
   protected static function AbsMul( $lhs, $rhs, $precision )
   {
-    $lhs = static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
-    $rhs = static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
+    $lhs = clone static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
+    $rhs = clone static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
 
     // if either number is zero, then the total is zero
     // that's the rule.
@@ -1940,8 +1940,8 @@ class BigNumber
    */
   static protected function AbsPow( $base, $exp, $precision)
   {
-    $base = static::FromValue($base);
-    $exp = static::FromValue($exp);
+    $base = clone static::FromValue($base);
+    $exp = clone static::FromValue($exp);
 
     if( $exp->IsZero() )
     {
@@ -1966,7 +1966,7 @@ class BigNumber
     {
       $copyBase->Ln(BigNumberConstants::PrecisionPadding($precision)); //  we need the correction, do we don't loose it too quick.
       $copyBase->Mul( $copyExp, BigNumberConstants::PrecisionPadding($precision));
-      $result = $copyBase->Exp(BigNumberConstants::PrecisionPadding($precision));
+      $result = $copyBase->Exp( BigNumberConstants::PrecisionPadding($precision) );
     }
     else
     {
@@ -2424,14 +2424,12 @@ class BigNumber
     }
 
     // get the integer part of the number.
-    $integer = new BigNumber($this);
-    $integer->Integer();
+    $integer = (new BigNumber($this))->Integer();
 
     // now get the decimal part of the number
-    $fraction = new BigNumber($this);
-    $fraction->Frac();
+    $fraction = (new BigNumber($this))->Frac();
 
-    // reset this to 1
+    // reset 'this' to 1
     $this->_Copy( BigNumberConstants::One() );
 
     // the two sides of the equation
@@ -2462,7 +2460,7 @@ class BigNumber
       for ( $i = 1; $i < self::BIGNUMBER_MAX_EXP_ITERATIONS; ++$i )
       {
         //  calculate the number up to the precision we are after.
-        $calulatedNumber = BigNumber( $power )->Div( $fact, BigNumberConstants::PrecisionPadding($precision));
+        $calulatedNumber = (new BigNumber( $power ))->Div( $fact, BigNumberConstants::PrecisionPadding($precision));
         if ( $calulatedNumber->IsZero() )
         {
           break;
@@ -2600,7 +2598,7 @@ class BigNumber
     }
 
     // if the number is one, then this number is one.
-    // it has to be as only 1*1 = 1 is the only posibility is.
+    // it has to be as only 1*1 = 1 is the only possibility is.
     if ( $this->Compare( BigNumberConstants::One() ) == 0)
     {
       $this->_Copy( BigNumberConstants::One() );
@@ -2615,7 +2613,7 @@ class BigNumber
 
       // try and use the power of...
       // nthroot = x^( 1/nthroot)
-      $number_one_over = BigNumber( BigNumberConstants::One() )->Div( $nthroot, BigNumberConstants::PrecisionPadding($precision));
+      $number_one_over = BigNumberConstants::One()->Div( $nthroot, BigNumberConstants::PrecisionPadding($precision) );
 
       // calculate it, use the correction to make sure we are well past
       // the actual value we want to set is as.
