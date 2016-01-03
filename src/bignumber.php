@@ -59,8 +59,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.09";
-  const BIGNUMBER_VERSION_NUMBER = "0001009";
+  const BIGNUMBER_VERSION        = "0.1.100";
+  const BIGNUMBER_VERSION_NUMBER = "0001100";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -397,10 +397,9 @@ class BigNumber
     }
 
     // remember that the numbers are in reverse
+    $l = $this->_numbers->size() - 1;
     for (;;)
     {
-      $l = $this->_numbers->size() - 1;
-
       // do we have a number?
       if ($l < 0 )
       {
@@ -410,6 +409,7 @@ class BigNumber
       // get the last number
       $it = $this->_numbers->at( $l );
 
+      // if that number is not zero then we have no more leading zeros.
       if ( $it != 0)
       {
         //  we are done.
@@ -418,9 +418,10 @@ class BigNumber
 
       // remove that 'leading' zero.
       $this->_numbers->erase( $l );
+      --$l;
     }
 
-    //  are we zero?
+    //  are we zero size?
     $l = $this->_numbers->size();
     if ($l == 0)
     {
@@ -434,7 +435,8 @@ class BigNumber
 
     while ($l < $this->_decimals+1)
     {
-      //  this is empty, so the number _must_ be zero
+      // we have a decimals but no 'leading' zero ".123" instead of "0.123"
+      // to avoid headaches later we add the zero.
       $this->_numbers->push_back(0);
       ++$l;
     }
@@ -843,14 +845,17 @@ class BigNumber
       return 0; //  they both zero len
     }
 
+    $lhsNumbers = $lhs->_numbers->raw();
+    $rhsNumbers = $rhs->_numbers->raw();
+
     // compare the whole numbers first.
     // because we know these are the same len, (they have to be).
     // otherwise the numbers above would not have worked.
     for ($i = (int)($ll- $lhs->_decimals -1); $i >= 0; --$i)
     {
       // get the numbers past the multiplier.
-      $ucl = $lhs->_numbers->at( $i+ $lhs->_decimals);
-      $ucr = $rhs->_numbers->at( $i+ $rhs->_decimals);
+      $ucl = $lhsNumbers[ $i+ $lhs->_decimals ];
+      $ucr = $rhsNumbers[ $i+ $rhs->_decimals ];
       if ($ucl == $ucr) //  still the same number
       {
         continue;
@@ -877,8 +882,8 @@ class BigNumber
     // the number of decimals might also not match.
     for ($i = $maxDecimals -1; $i >= 0 ; --$i )
     {
-      $ucl = ($i - $lhsDecimalsOffset < 0) ? 0 : $lhs->_numbers->at($i - $lhsDecimalsOffset);
-      $ucr = ($i - $rhsDecimalsOffset < 0) ? 0 : $rhs->_numbers->at($i - $rhsDecimalsOffset);
+      $ucl = ($i - $lhsDecimalsOffset < 0) ? 0 : $lhsNumbers[ $i - $lhsDecimalsOffset ];
+      $ucr = ($i - $rhsDecimalsOffset < 0) ? 0 : $rhsNumbers[ $i - $rhsDecimalsOffset ];
       if ($ucl == $ucr) //  still the same number
       {
         continue;
@@ -1038,10 +1043,10 @@ class BigNumber
   }
 
   /**
-   * Check if this number is smaler than the one given.
+   * Check if this number is smaller than the one given.
    * @see BigNumber::Compare( ... )
    * @param const BigNumber& rhs the number we are comparing to.
-   * @return bool if this number is smaller
+   * @return boolean if this number is smaller
    */
   public function IsLess( $rhs)
   {
@@ -1147,7 +1152,7 @@ class BigNumber
   }
 
   /**
-   * Devide By Base, effectively remove a zero at the end.
+   * Divide By Base, effectively remove a zero at the end.
    * 50 (base16) / 10 (base16) = 5
    * 50 (base10) / 10 (base10) = 5
    * if the number is smaller then we need to add zeros.
@@ -1275,8 +1280,11 @@ class BigNumber
    */
   static protected function AbsQuotientAndRemainder($numerator, $denominator, &$quotient, &$remainder)
   {
+    //  clone
     $numerator = clone static::FromValue($numerator);
     $denominator = clone static::FromValue($denominator);
+
+    // no-clone
     $quotient = static::FromValue($quotient);
     $remainder = static::FromValue($remainder);
 
@@ -1559,7 +1567,7 @@ class BigNumber
     // 0 / n = 0
     if ($lhs->IsZero())
     {
-      // lhs / 0 = nan
+      // 0 / n = 0
       return BigNumberConstants::Zero();
     }
 
@@ -1580,17 +1588,17 @@ class BigNumber
     $number = clone $lhs;
     $number->_neg = false;
 
-    // quotien/remainder we will use.
+    // quotient/remainder we will use.
     $quotient = new BigNumber();
     $remainder = new BigNumber();
 
-    // divide until we are done ... or we reached the presision limit.
+    // divide until we are done ... or we reached the precision limit.
     for (;;)
     {
       // get the quotient and remainder.
       static::QuotientAndRemainder($number, $rhs, $quotient, $remainder);
 
-      // add the quotien to the current number.
+      // add the quotient to the current number.
       foreach( array_reverse( $quotient->_numbers->raw()) as $number )
       {
         array_unshift( $c, $number );
@@ -1832,8 +1840,8 @@ class BigNumber
    */
   protected static function AbsSub( $lhs, $rhs)
   {
-    $lhs = static::FromValue($lhs);
-    $rhs = static::FromValue($rhs);
+    $lhs = clone static::FromValue($lhs);
+    $rhs = clone static::FromValue($rhs);
 
     // compare the 2 numbers
     if (static::AbsCompare($lhs, $rhs) < 0 )
@@ -1856,13 +1864,19 @@ class BigNumber
 
     // we know that lhs is greater than rhs.
     $carryOver = 0;
+
+    // get the total len, including the decimal/
     $ll = $lhs->_numbers->size();
     $rl = $rhs->_numbers->size();
 
     // get the maximum number of decimals.
+    // so if we do 4.23 - 4.2 the max number of decimals is 2.
     $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
     $lhsDecimalsOffset = $maxDecimals - $lhs->_decimals;
     $rhsDecimalsOffset = $maxDecimals - $rhs->_decimals;
+
+    $lhsNumbers = $lhs->_numbers->raw();
+    $rhsNumbers = $rhs->_numbers->raw();
 
     $numbers = [];
     for ($i = 0;; ++$i)
@@ -1872,9 +1886,16 @@ class BigNumber
         break;
       }
 
-      $l = ($i >= $lhsDecimalsOffset && $i < $ll + $lhsDecimalsOffset) ? $lhs->_numbers->at( $i - $lhsDecimalsOffset) : 0;
-      $r = ($i >= $rhsDecimalsOffset && $i < $rl + $rhsDecimalsOffset) ? $rhs->_numbers->at( $i - $rhsDecimalsOffset) : 0;
+      // work our way backward sooo
+      // 4.2 - 4.13 =
+      // 0-3, (4.20 - 4.13) = -3 = +7
+      // 2-1, (4.2  - 4.1)  =  1 =  0 // carry over
+      // 4-4, (4    - 4)    =  0 =  0 // no carry over
+      $l = ($i >= $lhsDecimalsOffset && $i < $ll + $lhsDecimalsOffset) ? $lhsNumbers[ $i - $lhsDecimalsOffset ] : 0;
+      $r = ($i >= $rhsDecimalsOffset && $i < $rl + $rhsDecimalsOffset) ? $rhsNumbers[ $i - $rhsDecimalsOffset ] : 0;
 
+      // the new number is the lhs - carry over - rhs
+      // if the number is negative, we have another carry over.
       $sum = $l - $carryOver - $r;
 
       $carryOver = 0;
