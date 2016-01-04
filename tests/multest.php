@@ -321,7 +321,7 @@ class TestMul extends PHPUnit_Framework_TestCase
 
   public function testNegativeOnePower()
   {
-    $x = \MyOddWeb\BigNumber(7);
+    $x = new \MyOddWeb\BigNumber(7);
     $x->Pow(-1, 10); //  0.14285714285714285714285714285714
     $z = $x->ToString();
     $this->assertSame("0.1428571428", $z);
@@ -329,7 +329,7 @@ class TestMul extends PHPUnit_Framework_TestCase
 
   public function testSquareRootOfTwo()
   {
-    $x = \MyOddWeb\BigNumber(4);
+    $x = new \MyOddWeb\BigNumber(4);
     $y = $x->Sqrt();
     $z = $y->ToString(); //  2
     $this->assertSame("2", $z);

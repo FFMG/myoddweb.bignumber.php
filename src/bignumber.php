@@ -32,7 +32,6 @@
 
 namespace MyOddWeb;
 
-require_once 'bignumberiterator.php';
 require_once 'bignumberconstants.php';
 
 class BigNumberException extends \Exception{};
@@ -59,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.100";
-  const BIGNUMBER_VERSION_NUMBER = "0001100";
+  const BIGNUMBER_VERSION        = "0.1.200";
+  const BIGNUMBER_VERSION_NUMBER = "0001200";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -70,7 +69,7 @@ class BigNumber
 
   /**
    * All the numbers in our number.
-   * @var bignumberiterator $_numebrs
+   * @var array $_numebrs
    */
   protected $_numbers = null;
 
@@ -150,10 +149,6 @@ class BigNumber
     // the number is just zero.
   }
 
-  public function __clone() {
-    $this->_numbers = clone $this->_numbers;
-  }
-
   /**
    * Copy all the values from the source on
    * @param BigNumber $src the source we are copying from.
@@ -164,7 +159,7 @@ class BigNumber
     $this->_decimals = $src->_decimals;
     $this->_nan = $src->_nan;
     $this->_neg = $src->_neg;
-    $this->_numbers = clone $src->_numbers;
+    $this->_numbers = $src->_numbers;
     $this->_zero = $src->_zero;
   }
 
@@ -178,7 +173,7 @@ class BigNumber
     $this->_nan = false;
     $this->_zero = false;
     $this->_decimals = 0;
-    $this->_numbers = new \MyOddWeb\BigNumberIterator();
+    $this->_numbers = []; // it has at least number zero
   }
 
   /**
@@ -205,7 +200,7 @@ class BigNumber
       while ($source > 0)
       {
         $s = $source % self::BIGNUMBER_BASE;
-        $this->_numbers->push_back($s);
+        $this->_numbers[] = $s;
 
         // the next number
         $source = (int)($source / self::BIGNUMBER_BASE);
@@ -258,10 +253,34 @@ class BigNumber
     $this->_decimals = (int)$decimals;
 
     // add the numbers
-    $this->_numbers->push_back($numbers);
+    foreach ( $numbers as $number )
+    {
+      static::ValidateNumber($number);
+      $this->_numbers[] = $number;
+    }
 
     // clean it all up.
     $this->PerformPostOperations( $this->_decimals );
+  }
+
+  /**
+   * Make sure that a number is valid.
+   * @param number $what the number we want to validate.
+   * @throws BigNumberException if the number cannot be added to the array.
+   */
+  private function ValidateNumber( $what )
+  {
+    // this must be a number
+    if( !is_int($what))
+    {
+      throw new BigNumberException( "You must insert a number" );
+    }
+
+    // the number _must_ be between 0 and 9
+    if( $what < 0 || $what > 9 )
+    {
+      throw new BigNumberException( "You must insert a number between 0 and 9 only." );
+    }
   }
 
   /**
@@ -328,11 +347,11 @@ class BigNumber
       // decimal
       if ( $decimalPoint == -1 && $char == '.')
       {
-        $decimalPoint = $this->_numbers->size();
+        $decimalPoint = count($this->_numbers);
         if ($decimalPoint == 0)
         {
           //  make sure it is '0.xyz' rather than '.xyz'
-          $this->_numbers->push_back(0);
+          $this->_numbers[] = 0;
           ++$decimalPoint;
         }
         continue;
@@ -342,13 +361,14 @@ class BigNumber
       {
         throw new BigNumberException( "The given value is not a number.");
       }
-      $this->_numbers->insert( 0, (int)$char );
+      static ::ValidateNumber( (int)$char );
+      array_unshift( $this->_numbers, (int)$char );
 
       // either way, signs are no longer allowed.
       $allowSign = false;
     }
     // get the number of decimals.
-    $this->_decimals = ($decimalPoint == -1) ? 0 : $this->_numbers->size() - $decimalPoint;
+    $this->_decimals = ($decimalPoint == -1) ? 0 : count($this->_numbers) - $decimalPoint;
 
     // clean it all up.
     $this->PerformPostOperations( $this->_decimals );
@@ -373,7 +393,7 @@ class BigNumber
     while ( $this->_decimals > 0)
     {
       //  get the decimal number
-      $it = $this->_numbers->at(0);
+      $it = $this->_numbers[0];
       if ($it === false )
       {
         // we have no more numbers
@@ -390,14 +410,14 @@ class BigNumber
       }
 
       // remove that number
-      $this->_numbers->erase( 0 );
+      array_splice( $this->_numbers, 0, 1 );
 
       // move back one decimal.
       --$this->_decimals;
     }
 
     // remember that the numbers are in reverse
-    $l = $this->_numbers->size() - 1;
+    $l = count( $this->_numbers ) -1;
     for (;;)
     {
       // do we have a number?
@@ -407,7 +427,7 @@ class BigNumber
       }
 
       // get the last number
-      $it = $this->_numbers->at( $l );
+      $it = $this->_numbers[ $l ];
 
       // if that number is not zero then we have no more leading zeros.
       if ( $it != 0)
@@ -417,19 +437,19 @@ class BigNumber
       }
 
       // remove that 'leading' zero.
-      $this->_numbers->erase( $l );
+      array_splice( $this->_numbers, $l, 1 );
       --$l;
     }
 
     //  are we zero size?
-    $l = $this->_numbers->size();
+    $l = count($this->_numbers);
     if ($l == 0)
     {
       //  this is empty, so the number _must_ be zero
       $this->_neg = false;
       $this->_zero = true;
       $this->_decimals = 0;
-      $this->_numbers->push_back(0);
+      $this->_numbers[] = 0;
       ++$l;
     }
 
@@ -437,7 +457,7 @@ class BigNumber
     {
       // we have a decimals but no 'leading' zero ".123" instead of "0.123"
       // to avoid headaches later we add the zero.
-      $this->_numbers->push_back(0);
+      $this->_numbers[] = 0;
       ++$l;
     }
 
@@ -516,7 +536,7 @@ class BigNumber
     }
 
     // get the first non decimal number.
-    $c = $this->_numbers->at( 0 + $this->_decimals );
+    $c = $this->_numbers[ 0 + $this->_decimals ];
 
     // is that number even?
     return (($c % 2) == 0);
@@ -551,10 +571,10 @@ class BigNumber
     $number = 0;
 
     // the total number of items.
-    $l = $this->_numbers->size();
+    $l = count( $this->_numbers );
 
     // go around each number and re-create the integer.
-    foreach ( array_reverse($this->_numbers->raw() ) as $c )
+    foreach ( array_reverse( $this->_numbers ) as $c )
     {
       $number = $number * self::BIGNUMBER_BASE + $c;
 
@@ -620,7 +640,7 @@ class BigNumber
     // is it the correct base already?
     if (self::BIGNUMBER_BASE == $base )
     {
-      return static::_ToString( array_reverse( $this->_numbers->raw() ), $this->_decimals, $this->IsNeg(), $precision );
+      return static::_ToString( array_reverse( $this->_numbers ), $this->_decimals, $this->IsNeg(), $precision );
     }
 
     // the base is not the same, so we now have to rebuild it.
@@ -827,8 +847,8 @@ class BigNumber
     $lhs = clone static::FromValue($lhs);
     $rhs = clone static::FromValue($rhs);
 
-    $ll = $lhs->_numbers->size();
-    $rl = $rhs->_numbers->size();
+    $ll = count( $lhs->_numbers );
+    $rl = count( $rhs->_numbers );
 
     $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
     $lhsDecimalsOffset = $maxDecimals - (int)$lhs->_decimals;
@@ -845,17 +865,14 @@ class BigNumber
       return 0; //  they both zero len
     }
 
-    $lhsNumbers = $lhs->_numbers->raw();
-    $rhsNumbers = $rhs->_numbers->raw();
-
     // compare the whole numbers first.
     // because we know these are the same len, (they have to be).
     // otherwise the numbers above would not have worked.
     for ($i = (int)($ll- $lhs->_decimals -1); $i >= 0; --$i)
     {
       // get the numbers past the multiplier.
-      $ucl = $lhsNumbers[ $i+ $lhs->_decimals ];
-      $ucr = $rhsNumbers[ $i+ $rhs->_decimals ];
+      $ucl = $lhs->_numbers[ $i+ $lhs->_decimals ];
+      $ucr = $rhs->_numbers[ $i+ $rhs->_decimals ];
       if ($ucl == $ucr) //  still the same number
       {
         continue;
@@ -882,8 +899,8 @@ class BigNumber
     // the number of decimals might also not match.
     for ($i = $maxDecimals -1; $i >= 0 ; --$i )
     {
-      $ucl = ($i - $lhsDecimalsOffset < 0) ? 0 : $lhsNumbers[ $i - $lhsDecimalsOffset ];
-      $ucr = ($i - $rhsDecimalsOffset < 0) ? 0 : $rhsNumbers[ $i - $rhsDecimalsOffset ];
+      $ucl = ($i - $lhsDecimalsOffset < 0) ? 0 : $lhs->_numbers[ $i - $lhsDecimalsOffset ];
+      $ucr = ($i - $rhsDecimalsOffset < 0) ? 0 : $rhs->_numbers[ $i - $rhsDecimalsOffset ];
       if ($ucl == $ucr) //  still the same number
       {
         continue;
@@ -1165,10 +1182,10 @@ class BigNumber
     $this->_decimals += $divisor;
 
     // check that the length is valid
-    $l = $this->_numbers->size();
+    $l = count( $this->_numbers );
     while ($l < $this->_decimals + 1)
     {
-      $this->_numbers->push_back( 0 );
+      $this->_numbers[] = 0;
       ++$l;
     }
     $this->PerformPostOperations( $this->_decimals );
@@ -1201,7 +1218,7 @@ class BigNumber
     // keep moving by adding zeros.
     for ($i = 0; $i < $multiplier; ++$i)
     {
-      $this->_numbers->insert( 0, 0);
+      array_unshift( $this->_numbers, 0 );
     }
 
     //  clean up
@@ -1599,7 +1616,7 @@ class BigNumber
       static::QuotientAndRemainder($number, $rhs, $quotient, $remainder);
 
       // add the quotient to the current number.
-      foreach( array_reverse( $quotient->_numbers->raw()) as $number )
+      foreach( array_reverse( $quotient->_numbers ) as $number )
       {
         array_unshift( $c, $number );
       }
@@ -1702,8 +1719,8 @@ class BigNumber
     //           = 300+75=375
 
     // the two sizes
-    $ll = $lhs->_numbers->size();
-    $rl = $rhs->_numbers->size();
+    $ll = count( $lhs->_numbers );
+    $rl = count( $rhs->_numbers );
 
     // the return number
     $c = new BigNumber();
@@ -1769,7 +1786,7 @@ class BigNumber
   protected function _MakeNumberAtIndex( $index, $length)
   {
     $number = 0;
-    $l = $this->_numbers->size();
+    $l = count($this->_numbers);
     for ( $i = ($length-1); $i >= 0; --$i)
     {
       $pos = ($i + $index);
@@ -1777,7 +1794,7 @@ class BigNumber
       {
         continue;
       }
-      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers->at( $pos );
+      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers[ $pos ];
     }
     return $number;
   }
@@ -1866,17 +1883,14 @@ class BigNumber
     $carryOver = 0;
 
     // get the total len, including the decimal/
-    $ll = $lhs->_numbers->size();
-    $rl = $rhs->_numbers->size();
+    $ll = count( $lhs->_numbers );
+    $rl = count( $rhs->_numbers );
 
     // get the maximum number of decimals.
     // so if we do 4.23 - 4.2 the max number of decimals is 2.
     $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
     $lhsDecimalsOffset = $maxDecimals - $lhs->_decimals;
     $rhsDecimalsOffset = $maxDecimals - $rhs->_decimals;
-
-    $lhsNumbers = $lhs->_numbers->raw();
-    $rhsNumbers = $rhs->_numbers->raw();
 
     $numbers = [];
     for ($i = 0;; ++$i)
@@ -1891,8 +1905,8 @@ class BigNumber
       // 0-3, (4.20 - 4.13) = -3 = +7
       // 2-1, (4.2  - 4.1)  =  1 =  0 // carry over
       // 4-4, (4    - 4)    =  0 =  0 // no carry over
-      $l = ($i >= $lhsDecimalsOffset && $i < $ll + $lhsDecimalsOffset) ? $lhsNumbers[ $i - $lhsDecimalsOffset ] : 0;
-      $r = ($i >= $rhsDecimalsOffset && $i < $rl + $rhsDecimalsOffset) ? $rhsNumbers[ $i - $rhsDecimalsOffset ] : 0;
+      $l = ($i >= $lhsDecimalsOffset && $i < $ll + $lhsDecimalsOffset) ? $lhs->_numbers[ $i - $lhsDecimalsOffset ] : 0;
+      $r = ($i >= $rhsDecimalsOffset && $i < $rl + $rhsDecimalsOffset) ? $rhs->_numbers[ $i - $rhsDecimalsOffset ] : 0;
 
       // the new number is the lhs - carry over - rhs
       // if the number is negative, we have another carry over.
@@ -1943,13 +1957,13 @@ class BigNumber
 
     // if that number is negative or past our limit
     // then we return 255
-    if($actualPosition < 0 || $actualPosition >= $this->_numbers->size() )
+    if($actualPosition < 0 || $actualPosition >= count($this->_numbers ))
     {
       return (int)255;
     }
 
     // we all good!
-    return $this->_numbers->at( $actualPosition );
+    return $this->_numbers[ $actualPosition ];
   }
 
   /**
@@ -2080,7 +2094,8 @@ class BigNumber
     if ($this->_decimals > $precision)
     {
       $end = $this->_decimals - $precision;
-      $this->_numbers->erase(0, $end );
+      array_splice( $this->_numbers, 0, $end );
+
       $this->_decimals -= $end;
     }
 
@@ -2268,9 +2283,9 @@ class BigNumber
     }
     else
     {
-      $l = $this->_numbers->size();
-      $this->_numbers->erase( $this->_decimals, $l - $this->_decimals );
-      $this->_numbers->push_back(0);
+      $l = count( $this->_numbers );
+      array_splice( $this->_numbers, $this->_decimals, $l - $this->_decimals );
+      $this->_numbers[] = 0;
     }
 
     // truncate and return, the sign is kept.
@@ -2545,8 +2560,8 @@ class BigNumber
     $x = clone $this;
 
     // values used a lot
-    $r_less_one = BigNumber($nthroot)->Sub( BigNumberConstants::One() );
-    $one_over_r = BigNumber(BigNumberConstants::One())->Div( $nthroot, $padded_precision);
+    $r_less_one = (new BigNumber($nthroot))->Sub( BigNumberConstants::One() );
+    $one_over_r = (new BigNumber( BigNumberConstants::One() ))->Div( $nthroot, $padded_precision);
 
     // calculate this over and over again.
     for ( $i = 0; $i < self::BIGNUMBER_MAX_ROOT_ITERATIONS; ++$i )
