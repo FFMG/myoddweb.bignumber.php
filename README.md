@@ -112,6 +112,12 @@ or you could do the same without the '***new***' argument.
 - Factorial() : The factorial of this number, (!n)
 - Mod( number ) : The mod of '*this*' number, (n % m). The remainder of the division. 
 - Quotient( number ) : : The quotient of dividing '*this*' number with this '*number*'.
+- Pow( number ) : '*this*' raised to '*number*' (n * n * n * ...).
+	- Negative number.
+- Exp() : e raised to the power '*this*'
+- Ln() : logarithm base e of '*this*'.
+- Root( number ) : The nth root of '*this*' number.
+- Sqrt() : The square root of '*this*' number.
 
 ### Other functions ###
 - IsNeg() : If '*this*' number is negative or not.
