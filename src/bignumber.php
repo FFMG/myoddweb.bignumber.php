@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.200";
-  const BIGNUMBER_VERSION_NUMBER = "0001200";
+  const BIGNUMBER_VERSION        = "0.1.300";
+  const BIGNUMBER_VERSION_NUMBER = "0001300";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -248,19 +248,29 @@ class BigNumber
     // do the default
     $this->_Default();
 
-    // copy the values.
-    $this->_neg = (boolean) $neg;
-    $this->_decimals = (int)$decimals;
-
-    // add the numbers
-    foreach ( $numbers as $number )
+    // validate the numbers.
+    foreach ( $numbers as &$number )
     {
-      static::ValidateNumber($number);
-      $this->_numbers[] = $number;
+      static::ValidateNumber( $number );
     }
 
+    // the values are now safe.
+    static::_FromSafeValues( $this, $numbers, $decimals, $neg);
+  }
+
+  protected static function _FromSafeValues( &$src, $numbers, $decimals, $neg )
+  {
+    // copy the values.
+    $src->_neg = (boolean) $neg;
+    $src->_decimals = (int)$decimals;
+
+    $src->_numbers = $numbers;
+
     // clean it all up.
-    $this->PerformPostOperations( $this->_decimals );
+    $src->PerformPostOperations( $src->_decimals );
+
+    // return the result.
+    return $src;
   }
 
   /**
@@ -268,13 +278,15 @@ class BigNumber
    * @param number $what the number we want to validate.
    * @throws BigNumberException if the number cannot be added to the array.
    */
-  private function ValidateNumber( $what )
+  private function ValidateNumber( &$what )
   {
     // this must be a number
-    if( !is_int($what))
+    if( !is_numeric($what))
     {
       throw new BigNumberException( "You must insert a number" );
     }
+
+    $what = (int)$what;
 
     // the number _must_ be between 0 and 9
     if( $what < 0 || $what > 9 )
@@ -357,12 +369,8 @@ class BigNumber
         continue;
       }
 
-      if ( !is_numeric($char) )
-      {
-        throw new BigNumberException( "The given value is not a number.");
-      }
-      static ::ValidateNumber( (int)$char );
-      array_unshift( $this->_numbers, (int)$char );
+      static ::ValidateNumber( $char );
+      array_unshift( $this->_numbers, $char );
 
       // either way, signs are no longer allowed.
       $allowSign = false;
@@ -1642,7 +1650,7 @@ class BigNumber
     }
 
     // then create the result with the known number of decimals.
-    return new BigNumber( $c, $decimals, false );
+    return static::_FromSafeValues( new BigNumber(), $c, $decimals, false );
   }
 
   /**
@@ -1776,7 +1784,7 @@ class BigNumber
       }
 
       // then add the number to our current total.
-      $c = static::AbsAdd($c, new BigNumber($numbers, 0, false));
+      $c = static::AbsAdd($c, static::_FromSafeValues( new BigNumber(), $numbers, 0, false));
     }
 
     // this is the number with no multipliers.
@@ -1846,7 +1854,7 @@ class BigNumber
     }
 
     // this is the new numbers
-    return new BigNumber( $numbers, $maxDecimals, false );
+    return static::_FromSafeValues( new BigNumber(), $numbers, $maxDecimals, false );
   }
 
   /**
@@ -1923,7 +1931,7 @@ class BigNumber
     }
 
     // this is the new numbers
-    return new BigNumber($numbers, $maxDecimals, false);
+    return static::_FromSafeValues( new BigNumber(), $numbers, $maxDecimals, false);
   }
 
   /**
@@ -2567,11 +2575,11 @@ class BigNumber
     for ( $i = 0; $i < self::BIGNUMBER_MAX_ROOT_ITERATIONS; ++$i )
     {
       //  y = n / pow( x, r_less_one)
-      $y1 = BigNumber($x)->Pow($r_less_one, $padded_precision);
-      $y = BigNumber($this)->Div($y1, $padded_precision);
+      $y1 = ( new BigNumber($x))->Pow($r_less_one, $padded_precision);
+      $y  = ( new BigNumber($this))->Div($y1, $padded_precision);
 
       // x = one_over_r *(r_less_one * x +  y);
-      $x_temp = BigNumber($one_over_r)->Mul( BigNumber($r_less_one)->Mul($x, $padded_precision)->Add($y), $padded_precision);
+      $x_temp = (new BigNumber($one_over_r) )->Mul( (new BigNumber($r_less_one))->Mul($x, $padded_precision)->Add($y), $padded_precision);
 
       // if the calculation we just did, did not really change anything
       // it means that we can stop here, there is no point in trying
