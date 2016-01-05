@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.300";
-  const BIGNUMBER_VERSION_NUMBER = "0001300";
+  const BIGNUMBER_VERSION        = "0.1.301";
+  const BIGNUMBER_VERSION_NUMBER = "0001301";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -858,6 +858,30 @@ class BigNumber
     $ll = count( $lhs->_numbers );
     $rl = count( $rhs->_numbers );
 
+    // fast comapare 2 arrays
+    if( $ll == $rl && $lhs->_decimals == $rhs->_decimals )
+    {
+      // go in reverse
+      for( $i= $ll -1; $i >= 0; --$i )
+      {
+        $ucl = &$lhs->_numbers[ $i ];
+        $ucr = &$rhs->_numbers[ $i ];
+
+        //  123 > 113
+        if ($ucl > $ucr)
+        {
+          return 1;
+        }
+
+        //  123 < 133
+        if ($ucl < $ucr)
+        {
+          return -1;
+        }
+      }
+      return 0; // same
+    }
+
     $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
     $lhsDecimalsOffset = $maxDecimals - (int)$lhs->_decimals;
     $rhsDecimalsOffset = $maxDecimals - (int)$rhs->_decimals;
@@ -879,8 +903,8 @@ class BigNumber
     for ($i = (int)($ll- $lhs->_decimals -1); $i >= 0; --$i)
     {
       // get the numbers past the multiplier.
-      $ucl = $lhs->_numbers[ $i+ $lhs->_decimals ];
-      $ucr = $rhs->_numbers[ $i+ $rhs->_decimals ];
+      $ucl = &$lhs->_numbers[ $i+ $lhs->_decimals ];
+      $ucr = &$rhs->_numbers[ $i+ $rhs->_decimals ];
       if ($ucl == $ucr) //  still the same number
       {
         continue;
