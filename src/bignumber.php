@@ -58,14 +58,21 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.303";
-  const BIGNUMBER_VERSION_NUMBER = "0001303";
+  const BIGNUMBER_VERSION        = "0.1.304";
+  const BIGNUMBER_VERSION_NUMBER = "0001304";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
   const BIGNUMBER_MAX_LN_ITERATIONS = 200;
   const BIGNUMBER_MAX_EXP_ITERATIONS = 100;
   const BIGNUMBER_MAX_ROOT_ITERATIONS = 100;
+
+  const BIGNUMBER_SHIFT     = 4;          // max int = 2147483647 on a 32 bit process
+                                          // so the biggest number we can have is 46340 (46340*46340=2147395600)
+                                          // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
+                                          // the biggest number is 9999*9999= 99980001
+  const BIGNUMBER_SHIFTZEROS = [0,0,0,0]; //  BIGNUMBER_SHIFT x 0
+
 
   /**
    * All the numbers in our number.
@@ -1657,9 +1664,10 @@ class BigNumber
       static::QuotientAndRemainder($number, $rhs, $quotient, $remainder);
 
       // add the quotient to the current number.
+      // we add the number in front as this is in reverse.
       $c = array_merge( $quotient->_numbers, $c);
 
-      //  are we done?
+      //  if the remainder is zero, then we are done.
       if ($remainder->IsZero())
       {
         break;
@@ -1762,16 +1770,11 @@ class BigNumber
 
     // the return number
     $c = new BigNumber();
-    $shift = 4;           // max int = 2147483647 on a 32 bit process
-                          // so the biggest number we can have is 46340 (46340*46340=2147395600)
-                          // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
-                          // the biggest number is 9999*9999= 99980001
-    $shiftszerros = array_fill( 0, $shift, 0 );
 
     $max_base = 10000;
 
     $shifts = [];
-    for ( $x = 0; $x < $ll; $x+= $shift)
+    for ( $x = 0; $x < $ll; $x+= self::BIGNUMBER_SHIFT)
     {
       // this number
       $numbers = [];
@@ -1780,15 +1783,15 @@ class BigNumber
       $carryOver = 0;
 
       // get the numbers.
-      $lhs_number = $lhs->_MakeNumberAtIndex( $x, $shift );
+      $lhs_number = $lhs->_MakeNumberAtIndex( $x, self::BIGNUMBER_SHIFT );
 
-      for ( $y = 0; $y < $rl; $y += $shift)
+      for ( $y = 0; $y < $rl; $y += self::BIGNUMBER_SHIFT )
       {
-        $rhs_number = $rhs->_MakeNumberAtIndex($y, $shift);
+        $rhs_number = $rhs->_MakeNumberAtIndex($y, self::BIGNUMBER_SHIFT );
         $sum = $lhs_number * $rhs_number + $carryOver;
         $carryOver = (int)((int)$sum / (int)$max_base);
 
-        for ($z = 0; $z < $shift; ++$z )
+        for ($z = 0; $z < self::BIGNUMBER_SHIFT; ++$z )
         {
           $s = $sum % self::BIGNUMBER_BASE;
           $numbers[] = $s;
@@ -1807,8 +1810,7 @@ class BigNumber
 
       // add a bunch of zeros _in front_ of our current number.
       $numbers = array_merge( $shifts, $numbers );
-
-      $shifts = array_merge( $shifts, $shiftszerros );
+      $shifts = array_merge( $shifts, self::BIGNUMBER_SHIFTZEROS );
 
       // then add the number to our current total.
       $c = static::AbsAdd($c, static::_FromSafeValues( new BigNumber(), $numbers, 0, false));
