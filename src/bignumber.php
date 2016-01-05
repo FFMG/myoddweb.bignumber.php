@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.301";
-  const BIGNUMBER_VERSION_NUMBER = "0001301";
+  const BIGNUMBER_VERSION        = "0.1.302";
+  const BIGNUMBER_VERSION_NUMBER = "0001302";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1892,26 +1892,31 @@ class BigNumber
     $lhs = clone static::FromValue($lhs);
     $rhs = clone static::FromValue($rhs);
 
+    // is it negative?
+    $neg = false;
+
     // compare the 2 numbers
     if (static::AbsCompare($lhs, $rhs) < 0 )
     {
       // swap the two values to get a positive result.
-      $c = static::AbsSub($rhs, $lhs);
+      $tmp = $lhs;
+      $lhs = $rhs;
+      $rhs = $tmp;
 
       // but we know it is negative
-      $c->_neg = true;
+      $neg = true;
 
-      // return the number
-      return $c->PerformPostOperations( $c->_decimals );
+      // and continue the subtraction.
     }
 
     // if we want to subtract zero from the lhs, then the result is rhs
     if ( $rhs->IsZero() )
     {
-      return $lhs;
+      return static::_FromSafeValues( new BigNumber(), $lhs->_numbers, $lhs->_decimals, $neg );
     }
 
     // we know that lhs is greater than rhs.
+    // because we swapped it earlier.
     $carryOver = 0;
 
     // get the total len, including the decimal/
@@ -1950,12 +1955,11 @@ class BigNumber
         $sum += self::BIGNUMBER_BASE;
         $carryOver = 1;
       }
-
       $numbers[] = $sum;
     }
 
     // this is the new numbers
-    return static::_FromSafeValues( new BigNumber(), $numbers, $maxDecimals, false);
+    return static::_FromSafeValues( new BigNumber(), $numbers, $maxDecimals, $neg );
   }
 
   /**
