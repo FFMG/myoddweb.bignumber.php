@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.304";
-  const BIGNUMBER_VERSION_NUMBER = "0001304";
+  const BIGNUMBER_VERSION        = "0.1.305";
+  const BIGNUMBER_VERSION_NUMBER = "0001305";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -72,6 +72,11 @@ class BigNumber
                                           // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
                                           // the biggest number is 9999*9999= 99980001
 
+  const BIGNUMBER_SHIFT_ADD = 9;          // max int = 2147483647 on a 32 bit process
+                                          // so the biggest number we can have is 999999999 (999999999*2=1999999998)
+
+  const BIGNUMBER_SHIFT_ADD_BASE = 1000000000;
+                                          // base ^ 9 '0's
   /**
    * All the numbers in our number.
    * @var array $_numebrs
@@ -1820,6 +1825,26 @@ class BigNumber
     return $c->PerformPostOperations( $precision );
   }
 
+  protected function _MakeNumberAtIndexWithDecimal( $index, $length, $offset)
+  {
+    $number = 0;
+    $x = $index - $offset;
+    if( $x >= 0 )
+    {
+      $number = $this->_MakeNumberAtIndex($x, $length);
+    }
+    else if( $x <= -1 * $length)
+    {
+      $number = 0;
+    }
+    else
+    {
+      $number = $this->_MakeNumberAtIndex(0, $length + $x );
+      $number *= pow( 10, abs($x));
+    }
+    return $number;
+  }
+
   protected function _MakeNumberAtIndex( $index, $length)
   {
     $number = 0;
@@ -1838,8 +1863,8 @@ class BigNumber
 
   /**
    * Add 2 absolute numbers together.
-   * @param const BigNumber lhs the number been Added from
-   * @param const BigNumber rhs the number been Added with.
+   * @param BigNumber $lhs the number been Added from
+   * @param BigNumber $rhs the number been Added with.
    * @return BigNumber the sum of the two numbers.
    */
   protected static function AbsAdd( $lhs, $rhs)
@@ -1851,30 +1876,38 @@ class BigNumber
     $carryOver = 0;
 
     // get the maximum number of decimals.
+    $maxDecimals = $lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals;
+
     $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
+    $lhsDecimalsOffset = $maxDecimals - $lhs->_decimals;
+    $rhsDecimalsOffset = $maxDecimals - $rhs->_decimals;
+
+    // the two sizes
+    $ll = count( $lhs->_numbers ) + $lhsDecimalsOffset;
+    $rl = count( $rhs->_numbers ) + $rhsDecimalsOffset;
 
     $numbers = [];
-    for ($i = 0;; ++$i)
+    for ($i = 0; $i < $ll || $i < $rl; $i += self::BIGNUMBER_SHIFT_ADD)
     {
-      $l = $lhs->_At( $i, $maxDecimals);
-      $r = $rhs->_At( $i, $maxDecimals);
-      if ($l === 255 && $r === 255)
-      {
-        break;
-      }
+      $lhs_number = $lhs->_MakeNumberAtIndexWithDecimal( $i, self::BIGNUMBER_SHIFT_ADD, $lhsDecimalsOffset );
+      $rhs_number = $rhs->_MakeNumberAtIndexWithDecimal( $i, self::BIGNUMBER_SHIFT_ADD, $rhsDecimalsOffset );
 
-      $l = ($l == 255) ? 0 : $l;
-      $r = ($r == 255) ? 0 : $r;
-
-      $sum = $l + $r + $carryOver;
+      $sum = $lhs_number + $rhs_number + $carryOver;
 
       $carryOver = 0;
-      if ($sum >= self::BIGNUMBER_BASE)
+      if ($sum >= self::BIGNUMBER_SHIFT_ADD_BASE )
       {
-        $sum -= self::BIGNUMBER_BASE;
-        $carryOver = 1;
+        $carryOver += (int)($sum / (self::BIGNUMBER_SHIFT_ADD_BASE));
+        $sum -= ($carryOver * self::BIGNUMBER_SHIFT_ADD_BASE);
       }
-      $numbers[] = $sum;
+
+      for ($z = 0; $z < self::BIGNUMBER_SHIFT_ADD; ++$z )
+      {
+        $s = $sum % self::BIGNUMBER_BASE;
+        $numbers[] = $s;
+
+        $sum = (int)((int)$sum / (int)self::BIGNUMBER_BASE);
+      }
     }
 
     if ( $carryOver > 0)
@@ -1965,46 +1998,6 @@ class BigNumber
 
     // this is the new numbers
     return static::_FromSafeValues( new BigNumber(), $numbers, $maxDecimals, $neg );
-  }
-
-  /**
-   * Get a number at a certain position, (from the last digit)
-   * In a number 1234.456 position #0 = 6 and #3=4
-   * The expected decimal, is the number of decimal we should have, if the expected number of decimals is 5, and the
-   * current number is 1234.56 then the 'actual' number is 1234.56000 so we have 5 decimal places.
-   * @param size_t position the number we want.
-   * @param size_t expectedDecimals the number of decimals we _should_ have, (see note).
-   * @return unsigned char the number or 255 if there is no valid number.
-   */
-  protected function _At( $position, $expectedDecimals)
-  {
-    // the numbers are saved in reverse:
-    //    #123 = [3][2][1]
-    // decimals are the same
-    //    #123.45 = [5][4][3][2][1]
-    //
-    // 'expectedDecimals' are decimals we are expected to have
-    // wether they exist or not, does not matter.
-    // so the number 123 with 2 'expected' decimals becomes
-    //    #123 = [0][0][3][2][1]
-    // but the number 123.45 with 2 'expected' decimals remains
-    //    #123 = [5][4][3][2][1]
-    //
-    // so, if we are looking to item 'position'=0 and we have 2 'expectedDecimals'
-    // then what we are really after is the first item '0'.
-    //    #123 = [0][0][3][2][1]
-    //
-    $actualPosition = (int)$position - (int)$expectedDecimals + (int)$this->_decimals;
-
-    // if that number is negative or past our limit
-    // then we return 255
-    if($actualPosition < 0 || $actualPosition >= count($this->_numbers ))
-    {
-      return (int)255;
-    }
-
-    // we all good!
-    return $this->_numbers[ $actualPosition ];
   }
 
   /**
