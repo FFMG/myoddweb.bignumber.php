@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.302";
-  const BIGNUMBER_VERSION_NUMBER = "0001302";
+  const BIGNUMBER_VERSION        = "0.1.303";
+  const BIGNUMBER_VERSION_NUMBER = "0001303";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -879,16 +879,23 @@ class BigNumber
           return -1;
         }
       }
-      return 0; // same
+
+      // numbers are the same len and all numbers are the same.
+      return 0;
     }
 
-    $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
-    $lhsDecimalsOffset = $maxDecimals - (int)$lhs->_decimals;
-    $rhsDecimalsOffset = $maxDecimals - (int)$rhs->_decimals;
+    // get the max number of decimals.
+    $maxDecimals = $lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals;
+    $lhsDecimalsOffset = $maxDecimals - $lhs->_decimals;
+    $rhsDecimalsOffset = $maxDecimals - $rhs->_decimals;
 
+    // check the whole number, if one is greater than the other
+    // then no need to compare in details.
+    // the decimal does not matter, xxx.0000001 > yy.999
     if ($ll+$lhsDecimalsOffset > $rl + $rhsDecimalsOffset) {
       return 1;
     }
+
     if ($ll + $lhsDecimalsOffset < $rl + $rhsDecimalsOffset) {
       return -1;
     }
@@ -900,7 +907,7 @@ class BigNumber
     // compare the whole numbers first.
     // because we know these are the same len, (they have to be).
     // otherwise the numbers above would not have worked.
-    for ($i = (int)($ll- $lhs->_decimals -1); $i >= 0; --$i)
+    for ($i = ($ll- $lhs->_decimals -1); $i >= 0; --$i)
     {
       // get the numbers past the multiplier.
       $ucl = &$lhs->_numbers[ $i+ $lhs->_decimals ];
@@ -951,7 +958,9 @@ class BigNumber
       }
     }
 
-    // they are the same
+    // they are the same, we should never reach this
+    // if they are the same len then we should have done
+    // a fast compare earlier.
     return 0;
   }
 
@@ -1333,18 +1342,18 @@ class BigNumber
     $numerator = clone static::FromValue($numerator);
     $denominator = clone static::FromValue($denominator);
 
-    // no-clone
-    $quotient = static::FromValue($quotient);
-    $remainder = static::FromValue($remainder);
-
     // are we trying to divide by zero?
     if ($denominator->IsZero())
     {
       // those are not value numbers.
-      $remainder = new BigNumber( "NaN" );
-      $quotient = new BigNumber( "NaN" );
+      $remainder = new BigNumber(); $remainder->_nan = true;
+      $quotient = new BigNumber(); $quotient->_nan = true;
       return;
     }
+
+    // no-clone as we want to change the actual values.
+    $quotient = static::FromValue($quotient);
+    $remainder = static::FromValue($remainder);
 
     // reset the quotient to 0.
     $quotient = BigNumberConstants::Zero();
@@ -1409,7 +1418,7 @@ class BigNumber
       }
 
       // we added it one more time
-      $quotient->Add(1);
+      $quotient->Add( BigNumberConstants::One() );
 
       // set the new value of the remainder.
       $remainder = $f;
@@ -1601,8 +1610,8 @@ class BigNumber
    */
   protected static function AbsDiv( $lhs, $rhs, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
   {
-    $lhs = clone static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision));
-    $rhs = clone static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision));
+    $lhs = clone static::FromValue($lhs)->Round( BigNumberConstants::PrecisionPadding($precision) );
+    $rhs = clone static::FromValue($rhs)->Round( BigNumberConstants::PrecisionPadding($precision) );
 
     // lhs / 0 = nan
     if ( $rhs->IsZero())
@@ -1648,10 +1657,7 @@ class BigNumber
       static::QuotientAndRemainder($number, $rhs, $quotient, $remainder);
 
       // add the quotient to the current number.
-      foreach( array_reverse( $quotient->_numbers ) as $number )
-      {
-        array_unshift( $c, $number );
-      }
+      $c = array_merge( $quotient->_numbers, $c);
 
       //  are we done?
       if ($remainder->IsZero())
@@ -1760,6 +1766,8 @@ class BigNumber
                           // so the biggest number we can have is 46340 (46340*46340=2147395600)
                           // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
                           // the biggest number is 9999*9999= 99980001
+    $shiftszerros = array_fill( 0, $shift, 0 );
+
     $max_base = 10000;
 
     $shifts = [];
@@ -1797,15 +1805,10 @@ class BigNumber
         $carryOver = (int)((int)$carryOver / (int)self::BIGNUMBER_BASE);
       }
 
-      // shift everything
-      foreach( $shifts as $numberToAdd )
-      {
-        array_unshift( $numbers, $numberToAdd );
-      }
+      // add a bunch of zeros _in front_ of our current number.
+      $numbers = array_merge( $shifts, $numbers );
 
-      for ($z = 0; $z < $shift; ++$z) {
-        $shifts[] = 0;
-      }
+      $shifts = array_merge( $shifts, $shiftszerros );
 
       // then add the number to our current total.
       $c = static::AbsAdd($c, static::_FromSafeValues( new BigNumber(), $numbers, 0, false));
