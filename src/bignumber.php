@@ -71,8 +71,6 @@ class BigNumber
                                           // so the biggest number we can have is 46340 (46340*46340=2147395600)
                                           // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
                                           // the biggest number is 9999*9999= 99980001
-  const BIGNUMBER_SHIFTZEROS = [0,0,0,0]; //  BIGNUMBER_SHIFT x 0
-
 
   /**
    * All the numbers in our number.
@@ -1810,7 +1808,9 @@ class BigNumber
 
       // add a bunch of zeros _in front_ of our current number.
       $numbers = array_merge( $shifts, $numbers );
-      $shifts = array_merge( $shifts, self::BIGNUMBER_SHIFTZEROS );
+
+      static $shiftZerros = [0,0,0,0]; //  BIGNUMBER_SHIFT x 0
+      $shifts = array_merge( $shifts, $shiftZerros );
 
       // then add the number to our current total.
       $c = static::AbsAdd($c, static::_FromSafeValues( new BigNumber(), $numbers, 0, false));
