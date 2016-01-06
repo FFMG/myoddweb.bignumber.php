@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.305";
-  const BIGNUMBER_VERSION_NUMBER = "0001305";
+  const BIGNUMBER_VERSION        = "0.1.400";
+  const BIGNUMBER_VERSION_NUMBER = "0001400";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -67,16 +67,19 @@ class BigNumber
   const BIGNUMBER_MAX_EXP_ITERATIONS = 100;
   const BIGNUMBER_MAX_ROOT_ITERATIONS = 100;
 
-  const BIGNUMBER_SHIFT     = 4;          // max int = 2147483647 on a 32 bit process
-                                          // so the biggest number we can have is 46340 (46340*46340=2147395600)
-                                          // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
-                                          // the biggest number is 9999*9999= 99980001
+  const BIGNUMBER_SHIFT     = 4;                // max int = 2147483647 on a 32 bit process
+                                                // so the biggest number we can have is 46340 (46340*46340=2147395600)
+                                                // so using 1 and 0 only, the biggest number is 10000 (and shift=4xzeros)
+                                                // the biggest number is 9999*9999= 99980001
 
-  const BIGNUMBER_SHIFT_ADD = 9;          // max int = 2147483647 on a 32 bit process
-                                          // so the biggest number we can have is 999999999 (999999999*2=1999999998)
+  const BIGNUMBER_SHIFT_ADD = 9;                // max int = 2147483647 on a 32 bit process
+                                                // so the biggest number we can have is 999999999 (999999999*2=1999999998)
+  const BIGNUMBER_SHIFT_ADD_BASE = 1000000000;  // base ^ 9 '0's
 
-  const BIGNUMBER_SHIFT_ADD_BASE = 1000000000;
-                                          // base ^ 9 '0's
+  const BIGNUMBER_SHIFT_SUB = 9;                // max int = 2147483647 on a 32 bit process
+                                                // so the biggest number we can have is 999999999
+  const BIGNUMBER_SHIFT_SUB_BASE = 1000000000;  // base ^ 9 '0's
+
   /**
    * All the numbers in our number.
    * @var array $_numebrs
@@ -408,44 +411,30 @@ class BigNumber
     // assume that we are not zero
     $this->_zero = false;
 
-    while ( $this->_decimals > 0)
+    // the current size
+    $l = count($this->_numbers);
+
+    $spliceDecimal = 0;
+    while ( $spliceDecimal < $l && $this->_decimals - $spliceDecimal > 0)
     {
       //  get the decimal number
-      $it = $this->_numbers[0];
-      if ($it === false )
-      {
-        // we have no more numbers
-        // we have reached the end.
-        // there can be no decimals.
-        $this->_decimals = 0;
-        break;
-      }
-
+      $it = $this->_numbers[$spliceDecimal];
       if ($it != 0)
       {
         //  we are done.
         break;
       }
 
-      // remove that number
-      array_splice( $this->_numbers, 0, 1 );
-
-      // move back one decimal.
-      --$this->_decimals;
+      ++$spliceDecimal;
     }
 
-    // remember that the numbers are in reverse
-    $l = count( $this->_numbers ) -1;
-    for (;;)
+    $spliceLeading = 0;
+    // the while loop might remove the leading zero before the decimal.
+    // although even if that number is zero, it does not matter, because 0.123 is valid
+    while ( ($l - $this->_decimals - $spliceLeading ) > 0 )
     {
-      // do we have a number?
-      if ($l < 0 )
-      {
-        break;
-      }
-
       // get the last number
-      $it = $this->_numbers[ $l ];
+      $it = $this->_numbers[ $l - $spliceLeading - 1];
 
       // if that number is not zero then we have no more leading zeros.
       if ( $it != 0)
@@ -455,12 +444,34 @@ class BigNumber
       }
 
       // remove that 'leading' zero.
-      array_splice( $this->_numbers, $l, 1 );
-      --$l;
+      ++$spliceLeading;
+    }
+
+    // do we have anything to revove?
+    // remove the decimals.
+    if( $spliceDecimal > 0)
+    {
+      // as it is in reverse, we are removing those from the front.
+      array_splice( $this->_numbers, 0, $spliceDecimal );
+
+      // remove the decimal.
+      $this->_decimals -= $spliceDecimal;
+
+      // update the length.
+      $l -= $spliceDecimal;
+    }
+
+    //  remove the leading zeros...
+    if( $spliceLeading > 0 )
+    {
+      // as it is in reverse, we are removing '$spliceLeading' from the back.
+      array_splice( $this->_numbers, $l - $spliceLeading, $spliceLeading );
+
+      // update the length.
+      $l -= $spliceLeading;
     }
 
     //  are we zero size?
-    $l = count($this->_numbers);
     if ($l == 0)
     {
       //  this is empty, so the number _must_ be zero
@@ -1869,54 +1880,98 @@ class BigNumber
    */
   protected static function AbsAdd( $lhs, $rhs)
   {
+    // make sure that the two numbers are bignumbers.
+    // we don't care about the sign.
     $lhs = static::FromValue($lhs);
     $rhs = static::FromValue($rhs);
 
-    // the carry over
+    // shortcut if either value is zero, we can return the other.
+    if( $lhs->IsZero() )
+    {
+      return clone $rhs;
+    }
+    if( $rhs->IsZero() )
+    {
+      return clone $lhs;
+    }
+
+    // the carry over, by default we don't have one.
     $carryOver = 0;
 
     // get the maximum number of decimals.
     $maxDecimals = $lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals;
 
-    $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
+    // given the max number, get the 'offset'"
+    //   if we have 2 numbers:
+    //   1.2 and 1.345
+    //   the max decimal = 3
+    //   the offset of the fist number is 2 and the offset of the second is zero.
     $lhsDecimalsOffset = $maxDecimals - $lhs->_decimals;
     $rhsDecimalsOffset = $maxDecimals - $rhs->_decimals;
 
-    // the two sizes
+    // the two sizes with the offset, we need the offset as we will
+    // get the numbers as-if we are going around.
     $ll = count( $lhs->_numbers ) + $lhsDecimalsOffset;
     $rl = count( $rhs->_numbers ) + $rhsDecimalsOffset;
 
+    // our final number, in reverse.
     $numbers = [];
     for ($i = 0; $i < $ll || $i < $rl; $i += self::BIGNUMBER_SHIFT_ADD)
     {
+      // get the number, with the offset for the lhs/rhs
       $lhs_number = $lhs->_MakeNumberAtIndexWithDecimal( $i, self::BIGNUMBER_SHIFT_ADD, $lhsDecimalsOffset );
       $rhs_number = $rhs->_MakeNumberAtIndexWithDecimal( $i, self::BIGNUMBER_SHIFT_ADD, $rhsDecimalsOffset );
 
+      // add the two numbers.
       $sum = $lhs_number + $rhs_number + $carryOver;
 
+      // do we have a carry over?
       $carryOver = 0;
       if ($sum >= self::BIGNUMBER_SHIFT_ADD_BASE )
       {
+        // yes, so we must break this down further.
         $carryOver += (int)($sum / (self::BIGNUMBER_SHIFT_ADD_BASE));
         $sum -= ($carryOver * self::BIGNUMBER_SHIFT_ADD_BASE);
       }
 
-      for ($z = 0; $z < self::BIGNUMBER_SHIFT_ADD; ++$z )
-      {
-        $s = $sum % self::BIGNUMBER_BASE;
-        $numbers[] = $s;
-
-        $sum = (int)((int)$sum / (int)self::BIGNUMBER_BASE);
-      }
+      // add this number to our numbers.
+      $numbers = array_merge($numbers, static::NumberToArray($sum, self::BIGNUMBER_SHIFT_ADD) );
     }
 
-    if ( $carryOver > 0)
-    {
-      $numbers[] = 1;
-    }
+    // do we have any more numbers to add?
+    // no need to check for zero or not, we will trim anyway.
+    $numbers[] = $carryOver;
 
     // this is the new numbers
     return static::_FromSafeValues( new BigNumber(), $numbers, $maxDecimals, false );
+  }
+
+  /**
+   * Break a number into an array of numbers.
+   * The 'expected' lenght is what we demand the array to be be.
+   * @param number $number the number we want to break down.
+   * @param number $expectedLength the lenght the array _must_ be.
+   */
+  static protected function NumberToArray( $number, $expectedLength )
+  {
+    // the return array
+    $numbers = [];
+
+    // whatever happens, our array must be the 'expected' length.
+    for ($z = 0; $z < $expectedLength; ++$z )
+    {
+      // get a single 0-9 number.
+      $s = $number % self::BIGNUMBER_BASE;
+
+      // add it to the array.
+      $numbers[] = $s;
+
+      // update the number
+      $number = (int)( $number / self::BIGNUMBER_BASE );
+    }
+
+    // the array of numbers.
+    return $numbers;
   }
 
   /**
@@ -1927,24 +1982,32 @@ class BigNumber
    */
   protected static function AbsSub( $lhs, $rhs)
   {
-    $lhs = clone static::FromValue($lhs);
-    $rhs = clone static::FromValue($rhs);
+    // make sure that the two numbers are bignumbers.
+    // we don't care about the sign.
+    $lhs = static::FromValue($lhs);
+    $rhs = static::FromValue($rhs);
 
     // is it negative?
     $neg = false;
 
     // compare the 2 numbers
-    if (static::AbsCompare($lhs, $rhs) < 0 )
+    $compare = static::AbsCompare($lhs, $rhs);
+    switch ( $compare )
     {
-      // swap the two values to get a positive result.
-      $tmp = $lhs;
-      $lhs = $rhs;
-      $rhs = $tmp;
+      case -1:
+        // swap the two values to get a positive result.
+        $tmp = $lhs;
+        $lhs = $rhs;
+        $rhs = $tmp;
 
-      // but we know it is negative
-      $neg = true;
+        // but we know it is negative
+        $neg = true;
+        break;
 
-      // and continue the subtraction.
+      case 0:
+        // they are the same, so it must be zero.
+        return new BigNumber();
+        break;
     }
 
     // if we want to subtract zero from the lhs, then the result is rhs
@@ -1953,48 +2016,54 @@ class BigNumber
       return static::_FromSafeValues( new BigNumber(), $lhs->_numbers, $lhs->_decimals, $neg );
     }
 
-    // we know that lhs is greater than rhs.
-    // because we swapped it earlier.
+    // the carry over, by default we don't have one.
     $carryOver = 0;
 
-    // get the total len, including the decimal/
-    $ll = count( $lhs->_numbers );
-    $rl = count( $rhs->_numbers );
-
     // get the maximum number of decimals.
-    // so if we do 4.23 - 4.2 the max number of decimals is 2.
-    $maxDecimals = (int)($lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals);
+    $maxDecimals = $lhs->_decimals >= $rhs->_decimals ? $lhs->_decimals : $rhs->_decimals;
+
+    // given the max number, get the 'offset'"
+    //   if we have 2 numbers:
+    //   1.2 and 1.345
+    //   the max decimal = 3
+    //   the offset of the fist number is 2 and the offset of the second is zero.
     $lhsDecimalsOffset = $maxDecimals - $lhs->_decimals;
     $rhsDecimalsOffset = $maxDecimals - $rhs->_decimals;
 
+    // the two sizes with the offset, we need the offset as we will
+    // get the numbers as-if we are going around.
+    $ll = count( $lhs->_numbers ) + $lhsDecimalsOffset;
+    $rl = count( $rhs->_numbers ) + $rhsDecimalsOffset;
+
+    // our final number, in reverse.
     $numbers = [];
-    for ($i = 0;; ++$i)
+    for ($i = 0; $i < $ll || $i < $rl; $i += self::BIGNUMBER_SHIFT_SUB)
     {
-      if (($i - $lhsDecimalsOffset) >= $ll && ($i - $rhsDecimalsOffset) >= $rl)
-      {
-        break;
-      }
+      // get the number, with the offset for the lhs/rhs
+      $lhs_number = $lhs->_MakeNumberAtIndexWithDecimal( $i, self::BIGNUMBER_SHIFT_SUB, $lhsDecimalsOffset );
+      $rhs_number = $rhs->_MakeNumberAtIndexWithDecimal( $i, self::BIGNUMBER_SHIFT_SUB, $rhsDecimalsOffset );
 
       // work our way backward sooo
       // 4.2 - 4.13 =
       // 0-3, (4.20 - 4.13) = -3 = +7
       // 2-1, (4.2  - 4.1)  =  1 =  0 // carry over
-      // 4-4, (4    - 4)    =  0 =  0 // no carry over
-      $l = ($i >= $lhsDecimalsOffset && $i < $ll + $lhsDecimalsOffset) ? $lhs->_numbers[ $i - $lhsDecimalsOffset ] : 0;
-      $r = ($i >= $rhsDecimalsOffset && $i < $rl + $rhsDecimalsOffset) ? $rhs->_numbers[ $i - $rhsDecimalsOffset ] : 0;
+      // subtract the two numbers.
+      $subtract = $lhs_number - $rhs_number - $carryOver;
 
-      // the new number is the lhs - carry over - rhs
-      // if the number is negative, we have another carry over.
-      $sum = $l - $carryOver - $r;
-
+      // do we have a carry over?
       $carryOver = 0;
-      if ($sum < 0)
+      if ($subtract < 0 )
       {
-        $sum += self::BIGNUMBER_BASE;
+        // yes, so we must break this down further.
         $carryOver = 1;
+        $subtract += self::BIGNUMBER_SHIFT_SUB_BASE;
       }
-      $numbers[] = $sum;
+
+      // add this number to our numbers.
+      $numbers = array_merge($numbers, static::NumberToArray($subtract, self::BIGNUMBER_SHIFT_SUB) );
     }
+
+    // NB: we cannot have a carry over as lhs we greater than rhs.
 
     // this is the new numbers
     return static::_FromSafeValues( new BigNumber(), $numbers, $maxDecimals, $neg );
