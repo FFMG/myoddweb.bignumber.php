@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.402";
-  const BIGNUMBER_VERSION_NUMBER = "0001402";
+  const BIGNUMBER_VERSION        = "0.1.403";
+  const BIGNUMBER_VERSION_NUMBER = "0001403";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1907,11 +1907,11 @@ class BigNumber
     $number = 0;
 
     // the total we are after.
-    $count = count($this->_numbers);
-    $startPos = $length-1;
+    $count = count($this->_numbers) -1;
+    $startPos = $index + $length-1;
 
-    if( $startPos + $index > $count ){
-      $startPos = $count - $index - 1;
+    if( $startPos > $count ){
+      $startPos = $count;
       if( $startPos < 0 ){
         // we will never make it...
         // as we work with 'un-clean' arrays.
@@ -1920,17 +1920,10 @@ class BigNumber
       }
     }
 
-    // loop around getting the number.
-    for ( $pos = $startPos; $pos >= 0; --$pos)
+    for ( $pos = $startPos; $pos >= $index; --$pos)
     {
-      $actualPos = ($pos + $index);
-      if ($actualPos >= $count)
-      {
-        continue;
-      }
-
       // add this number to our.
-      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers[ $actualPos ];
+      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers[ $pos ];
     }
     return $number;
   }
