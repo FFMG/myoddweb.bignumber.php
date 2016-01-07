@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.400";
-  const BIGNUMBER_VERSION_NUMBER = "0001400";
+  const BIGNUMBER_VERSION        = "0.1.401";
+  const BIGNUMBER_VERSION_NUMBER = "0001401";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -447,7 +447,7 @@ class BigNumber
       ++$spliceLeading;
     }
 
-    // do we have anything to revove?
+    // do we have anything to remove?
     // remove the decimals.
     if( $spliceDecimal > 0)
     {
@@ -465,6 +465,10 @@ class BigNumber
     if( $spliceLeading > 0 )
     {
       // as it is in reverse, we are removing '$spliceLeading' from the back.
+      if( $l - $spliceLeading < 0 )
+      {
+        throw new \Exception( "AA" );
+      }
       array_splice( $this->_numbers, $l - $spliceLeading, $spliceLeading );
 
       // update the length.
@@ -879,14 +883,14 @@ class BigNumber
     $ll = count( $lhs->_numbers );
     $rl = count( $rhs->_numbers );
 
-    // fast comapare 2 arrays
+    // fast compare 2 arrays
     if( $ll == $rl && $lhs->_decimals == $rhs->_decimals )
     {
       // go in reverse
       for( $i= $ll -1; $i >= 0; --$i )
       {
-        $ucl = &$lhs->_numbers[ $i ];
-        $ucr = &$rhs->_numbers[ $i ];
+        $ucl = $lhs->_numbers[ $i ];
+        $ucr = $rhs->_numbers[ $i ];
 
         //  123 > 113
         if ($ucl > $ucr)
@@ -931,8 +935,8 @@ class BigNumber
     for ($i = ($ll- $lhs->_decimals -1); $i >= 0; --$i)
     {
       // get the numbers past the multiplier.
-      $ucl = &$lhs->_numbers[ $i+ $lhs->_decimals ];
-      $ucr = &$rhs->_numbers[ $i+ $rhs->_decimals ];
+      $ucl = $lhs->_numbers[ $i+ $lhs->_decimals ];
+      $ucr = $rhs->_numbers[ $i+ $rhs->_decimals ];
       if ($ucl == $ucr) //  still the same number
       {
         continue;
@@ -1535,9 +1539,9 @@ class BigNumber
 
   /**
    * Devide this number by the given number.
-   * @param BigNumber $rhs the number we want to devide this by
-   * @param number $precision the max precision we wish to reache.
-   * @return BigNumber this number devided.
+   * @param BigNumber $rhs the number we want to divide this by
+   * @param number $precision the max precision we wish to reach.
+   * @return BigNumber this number divided.
    */
   public function Div( $rhs, $precision= self::BIGNUMBER_DEFAULT_PRECISION )
   {
@@ -2671,6 +2675,7 @@ class BigNumber
     {
       //  y = n / pow( x, r_less_one)
       $y1 = ( new BigNumber($x))->Pow($r_less_one, $padded_precision);
+
       $y  = ( new BigNumber($this))->Div($y1, $padded_precision);
 
       // x = one_over_r *(r_less_one * x +  y);
@@ -2707,8 +2712,8 @@ class BigNumber
     // make sure that the number is a BigNumber
     $nthroot = static::FromValue($nthroot);
 
-    // sanity checks, even nthroots cannot get negative nuber
-    // Root( 4, -24 ) is not posible as nothing x * x * x  * x can give a negative result
+    // sanity checks, even nthroots cannot get negative number
+    // Root( 4, -24 ) is not possible as nothing x * x * x  * x can give a negative result
     if ($this->IsNeg() && $nthroot->IsEven() )
     {
       // sqrt(-x) == NaN
