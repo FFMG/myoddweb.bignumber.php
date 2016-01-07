@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.401";
-  const BIGNUMBER_VERSION_NUMBER = "0001401";
+  const BIGNUMBER_VERSION        = "0.1.402";
+  const BIGNUMBER_VERSION_NUMBER = "0001402";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1829,8 +1829,8 @@ class BigNumber
       // add a bunch of zeros _in front_ of our current number.
       $numbers = array_merge( $shifts, $numbers );
 
-      static $shiftZerros = [0,0,0,0]; //  BIGNUMBER_SHIFT x 0
-      $shifts = array_merge( $shifts, $shiftZerros );
+      static $shiftZeros = [0,0,0,0]; //  BIGNUMBER_SHIFT x 0
+      $shifts = array_merge( $shifts, $shiftZeros );
 
       // then add the number to our current total.
       $c = static::AbsAdd($c, static::_FromSafeValues( new BigNumber(), $numbers, 0, false));
@@ -1840,38 +1840,97 @@ class BigNumber
     return $c->PerformPostOperations( $precision );
   }
 
-  protected function _MakeNumberAtIndexWithDecimal( $index, $length, $offset)
+  /**
+   * Get a number from our array of numbers at a certain offset and for a certain length.
+   * So if we have an array of numbers 1,2,3,4,5,6,7,8,9 and we want to get the number from #2 with a len of 2 the number would be  '34', (3,4)
+   * If the number is too large, then there is a real risk that the number will overflow.
+   * Yet, we do not check for that as we do not want to slow this function down, (it is an internal function, so invalid numbers should never happen).
+   * The 'offset' param is used in the case of decimal numbers, if we have a number '1234.1' and have an offset of 2,
+   * then the number we want to actually look at is '1234.100'.
+   * @uses _MakeNumberAtIndex(...)
+   * @param number $index the position we are starting from
+   * @param number $length the number of items we want to get.
+   * @param number $offset the offset we are shifting by.
+   * @return number the number represented at the index/lenght
+   */
+  private function _MakeNumberAtIndexWithDecimal( $index, $length, $offset)
   {
-    $number = 0;
-    $x = $index - $offset;
-    if( $x >= 0 )
+    // as we are working in reverse we need to step back
+    // if we have number 1234 we actually represent it as '4,3,2,1'
+    // so we need to go back a little bit as if we had decimal places all along.
+    $shiftedIndex = $index - $offset;
+    if( $shiftedIndex >= 0 )
     {
-      $number = $this->_MakeNumberAtIndex($x, $length);
+      // even by reversing back a little, we still are withing our real number.
+      // if we have 1234.45 and we want #5 lenght #2 ofset 2, then we can still return '34'
+      // that number still falls withing our 'real' number.
+      return $this->_MakeNumberAtIndex($shiftedIndex, $length);
     }
-    else if( $x <= -1 * $length)
+    else if( $shiftedIndex <= -1 * $length)
     {
-      $number = 0;
+      // by reversing the way we did, all the numbers we are getting
+      // will now be zeros, for example, we are have a number 1234 with an offset of 5 and lenght of 2
+      // so the number reall is 1234.00000 so we know that the number, has to be '0'
+      return 0;
     }
-    else
-    {
-      $number = $this->_MakeNumberAtIndex(0, $length + $x );
-      $number *= pow( 10, abs($x));
-    }
+
+    // in this case, there is a slight overlap
+    // some of the number is ours and some is part of the array
+    // number '123' offset = 2 = '123.00'
+    // and if we want number 2 len 2 then we have to get, (in reverse!),
+    // the '3' and the other number has to be a 0 = 30
+    //
+    // Note that $shiftedIndex is negative but not smaller than -1*length
+    // so to shift the $length - $shiftedIndex, (or $length + (-$shiftedIndex) in this case).
+    $number = $this->_MakeNumberAtIndex(0, $length + $shiftedIndex );
+
+    // we got the numbers from our own real position, we now need to add the 'zeros' at the end.
+    $number *= pow( 10, abs($shiftedIndex));
+
+    // and this is our number.
     return $number;
   }
 
-  protected function _MakeNumberAtIndex( $index, $length)
+  /**
+   * Get a number from our array of numbers at a certain offset and for a certain length.
+   * So if we have an array of numbers 1,2,3,4,5,6,7,8,9 and we want to get the number from #2 with a len of 2 the number would be  '34', (3,4)
+   * If the number is too large, then there is a real risk that the number will overflow.
+   * Yet, we do not check for that as we do not want to slow this function down, (it is an internal function, so invalid numbers should never happen).
+   * @param number $index the position we are starting from
+   * @param number $length the number of items we want to get.
+   * @param number $offset the offset we are shifting by.
+   * @return number the number represented at the index/lenght
+   */
+  private function _MakeNumberAtIndex( $index, $length)
   {
+    // the return number.
     $number = 0;
-    $l = count($this->_numbers);
-    for ( $i = ($length-1); $i >= 0; --$i)
+
+    // the total we are after.
+    $count = count($this->_numbers);
+    $startPos = $length-1;
+
+    if( $startPos + $index > $count ){
+      $startPos = $count - $index - 1;
+      if( $startPos < 0 ){
+        // we will never make it...
+        // as we work with 'un-clean' arrays.
+        // it is possible that our array is empty.
+        return 0;
+      }
+    }
+
+    // loop around getting the number.
+    for ( $pos = $startPos; $pos >= 0; --$pos)
     {
-      $pos = ($i + $index);
-      if ($pos >= $l)
+      $actualPos = ($pos + $index);
+      if ($actualPos >= $count)
       {
         continue;
       }
-      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers[ $pos ];
+
+      // add this number to our.
+      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers[ $actualPos ];
     }
     return $number;
   }
