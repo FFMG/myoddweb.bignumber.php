@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.403";
-  const BIGNUMBER_VERSION_NUMBER = "0001403";
+  const BIGNUMBER_VERSION        = "0.1.404";
+  const BIGNUMBER_VERSION_NUMBER = "0001404";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -452,7 +452,7 @@ class BigNumber
     if( $spliceDecimal > 0)
     {
       // as it is in reverse, we are removing those from the front.
-      array_splice( $this->_numbers, 0, $spliceDecimal );
+      $this->_numbers = array_slice( $this->_numbers, $spliceDecimal );
 
       // remove the decimal.
       $this->_decimals -= $spliceDecimal;
@@ -465,11 +465,7 @@ class BigNumber
     if( $spliceLeading > 0 )
     {
       // as it is in reverse, we are removing '$spliceLeading' from the back.
-      if( $l - $spliceLeading < 0 )
-      {
-        throw new \Exception( "AA" );
-      }
-      array_splice( $this->_numbers, $l - $spliceLeading, $spliceLeading );
+      $this->_numbers = array_slice( $this->_numbers, 0, $l - $spliceLeading );
 
       // update the length.
       $l -= $spliceLeading;
@@ -2253,8 +2249,7 @@ class BigNumber
     if ($this->_decimals > $precision)
     {
       $end = $this->_decimals - $precision;
-      array_splice( $this->_numbers, 0, $end );
-
+      $this->_numbers = array_slice( $this->_numbers, $end );
       $this->_decimals -= $end;
     }
 
