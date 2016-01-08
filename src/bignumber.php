@@ -58,14 +58,25 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.404";
-  const BIGNUMBER_VERSION_NUMBER = "0001404";
+  const BIGNUMBER_VERSION        = "0.1.500";
+  const BIGNUMBER_VERSION_NUMBER = "0001500";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
   const BIGNUMBER_MAX_LN_ITERATIONS = 200;
   const BIGNUMBER_MAX_EXP_ITERATIONS = 100;
   const BIGNUMBER_MAX_ROOT_ITERATIONS = 100;
+
+  //
+  // @todo a lot of the numbers bellow assume x86 we need to find a way of changing the values.
+  //       based on the process.
+  //       on a x64 process we could greatly speed up add/subtract/mul/div and we would be fully
+  //       using the memory and cpu available to us.
+  //
+  const BIGNUMBER_MAX_NUM_LEN = 9;              // max int = 2147483647 on an x86 machine
+                                                // or 10 numbers, but all 10 numbers could be 999999999
+                                                // and that would take us over the limit
+                                                // so our max safe len is 9 as 999999999 is below 2147483647
 
   const BIGNUMBER_SHIFT     = 4;                // max int = 2147483647 on a 32 bit process
                                                 // so the biggest number we can have is 46340 (46340*46340=2147395600)
@@ -536,7 +547,6 @@ class BigNumber
 
   /**
    * Fast check if we are an odd number.
-
    * @return bool if this is an odd or even number.
    */
   public function IsOdd()
@@ -1363,14 +1373,6 @@ class BigNumber
     $numerator = clone static::FromValue($numerator);
     $denominator = clone static::FromValue($denominator);
 
-    //  can we use the 'fast' way?
-//    if( $denominator->_decimals == 0 && count($denominator->_numbers) <= 9 )
-//    {
-//      //  we can use the fast way.
-//      static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
-//      return;
-//    }
-
     // are we trying to divide by zero?
     if ($denominator->IsZero())
     {
@@ -1378,6 +1380,29 @@ class BigNumber
       $remainder = new BigNumber(); $remainder->_nan = true;
       $quotient = new BigNumber(); $quotient->_nan = true;
       return;
+    }
+
+    //  can we use the 'fast' way?
+    if( $denominator->_decimals == 0 )
+    {
+      if( count($denominator->_numbers) <= self::BIGNUMBER_MAX_NUM_LEN )
+      {
+        // can we go even faster? If the numbers are smaller than our max int then we can.
+        if( $numerator->_decimals == 0 && count($numerator->_numbers ) <= self::BIGNUMBER_MAX_NUM_LEN )
+        {
+          $n = $numerator->Abs()->ToInt();
+          $d = $denominator->Abs()->ToInt();
+          $num = (int)($n / $d);
+          $mod = $n % $d;
+          $quotient = new BigNumber( $num );
+          $remainder = new BigNumber( $mod );
+          return;
+        }
+
+        //  we can use the fast way.
+        // static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
+        // return;
+      }
     }
 
     // no-clone as we want to change the actual values.
@@ -1511,6 +1536,7 @@ class BigNumber
     //  get the positive denominator.
     $intDenominator = $denominator->Abs()->ToInt();
 
+    // the offset is just one more than the total len of our number.
     $offset = count($denominator->_numbers) + 1;
     $length = count($numerator->_numbers);
 
@@ -1520,16 +1546,20 @@ class BigNumber
     // we then work one number at at a time.
     $numbers = [];
 
-    //  get the first 'x' numbers.
+    // get the first 'x' numbers.
+    // after that we will be getting one number at a time.
     $number = $numerator->_MakeNumberAtIndexForward(0, $offset );
 
-    // now get the numbers while we have numbers available.
+    // now create an array of our remaining numbers.
+    // we will use them all one by one to calculate the 'final' denominator.
     $array = array_slice($numerator->_numbers, 0, $length - $offset );
     $length -= $offset;
     for(;;)
     {
       // the div of that number
       $div = (int)($number / $intDenominator);
+
+      // add the numbers, in reverse to our final array.
       $tnumber = [];
       while ($div > 0)
       {
@@ -1559,7 +1589,6 @@ class BigNumber
 
   static protected function AbsRemainderFast($numerator, $denominator )
   {
-    $offset = 9;
     $intDenominator = $denominator->ToInt();
 
     // @see http://www.devx.com/tips/Tip/39012
@@ -1568,10 +1597,10 @@ class BigNumber
     for(;;)
     {
       // get the first 'x' numbers, as we are in reverse, we get the last x numbers.
-      $number = $numerator->_MakeNumberAtIndexForward(0, $offset );
+      $number = $numerator->_MakeNumberAtIndexForward(0, self::BIGNUMBER_MAX_NUM_LEN );
       $mod = $number % $intDenominator;
 
-      if( $length - $offset < 0 )
+      if( $length - self::BIGNUMBER_MAX_NUM_LEN < 0 )
       {
         //  finalise the remained
         $remainder = new BigNumber( $mod );
@@ -1581,9 +1610,11 @@ class BigNumber
       }
 
       // remove the offset numbers, but, we are working in reverse...
-      $numerator->_numbers = array_slice($numerator->_numbers, 0, $length - $offset );
-      $length -= $offset;
+      $numerator->_numbers = array_slice($numerator->_numbers, 0, $length - self::BIGNUMBER_MAX_NUM_LEN );
+      $length -= self::BIGNUMBER_MAX_NUM_LEN;
 
+      // we build the numbers, they are been added in reverse.
+      // and this is fine as this is the way our own array works.
       while ($mod > 0)
       {
         $s = $mod % self::BIGNUMBER_BASE;
