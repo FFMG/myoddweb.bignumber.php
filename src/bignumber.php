@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.500";
-  const BIGNUMBER_VERSION_NUMBER = "0001500";
+  const BIGNUMBER_VERSION        = "0.1.501";
+  const BIGNUMBER_VERSION_NUMBER = "0001501";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1382,29 +1382,6 @@ class BigNumber
       return;
     }
 
-    //  can we use the 'fast' way?
-    if( $denominator->_decimals == 0 )
-    {
-      if( count($denominator->_numbers) <= self::BIGNUMBER_MAX_NUM_LEN )
-      {
-        // can we go even faster? If the numbers are smaller than our max int then we can.
-        if( $numerator->_decimals == 0 && count($numerator->_numbers ) <= self::BIGNUMBER_MAX_NUM_LEN )
-        {
-          $n = $numerator->Abs()->ToInt();
-          $d = $denominator->Abs()->ToInt();
-          $num = (int)($n / $d);
-          $mod = $n % $d;
-          $quotient = new BigNumber( $num );
-          $remainder = new BigNumber( $mod );
-          return;
-        }
-
-        //  we can use the fast way.
-        // static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
-        // return;
-      }
-    }
-
     // no-clone as we want to change the actual values.
     $quotient = static::FromValue($quotient);
     $remainder = static::FromValue($remainder);
@@ -1427,6 +1404,46 @@ class BigNumber
     if (static::AbsCompare($numerator, $denominator) < 0)
     {
       return;
+    }
+
+    //  can we use the 'fast' way?
+    if( $denominator->_decimals == 0 )
+    {
+      $denoMinatorLen = count($denominator->_numbers);
+      if( $denoMinatorLen <= self::BIGNUMBER_MAX_NUM_LEN )
+      {
+        // can we go even faster? If the numbers are smaller than our max int then we can.
+        if( $numerator->_decimals == 0 && count($numerator->_numbers ) <= self::BIGNUMBER_MAX_NUM_LEN )
+        {
+          $n = $numerator->Abs()->ToInt();
+          $d = $denominator->Abs()->ToInt();
+          $num = (int)($n / $d);
+          $mod = $n % $d;
+          $quotient = new BigNumber( $num );
+          $remainder = new BigNumber( $mod );
+          return;
+        }
+
+        if( $denoMinatorLen == self::BIGNUMBER_MAX_NUM_LEN )
+        {
+          //  because the numerator is the same len as BIGNUMBER_MAX_NUM_LEN
+          // we need to make sure that the first number is not smaller than the first number
+          // of the denominator.
+          // otherwise that will not work.
+          if( $numerator->_decimals[self::BIGNUMBER_MAX_NUM_LEN] < $denominator->_decimals[self::BIGNUMBER_MAX_NUM_LEN] )
+          {
+            // we can use the fast way as the denominator is smaller than the numerator.
+            static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
+            return;
+          }
+        }
+        else
+        {
+          // we can use the fast way as the denominator is smaller than the numerator.
+          static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
+          return;
+        }
+      }
     }
 
     // do a 'quick' remainder calculations.
@@ -1531,10 +1548,13 @@ class BigNumber
     }
 
     //  get the remained.
-    $remainder = static::AbsRemainderFast( clone $numerator, $denominator );
+    $remainder = static::AbsRemainderFast( $numerator, $denominator );
 
     //  get the positive denominator.
     $intDenominator = $denominator->Abs()->ToInt();
+
+    // convert to integer.
+    $numerator->Abs()->Integer();
 
     // the offset is just one more than the total len of our number.
     $offset = count($denominator->_numbers) + 1;
@@ -1587,9 +1607,19 @@ class BigNumber
     }
   }
 
+  /**
+   *
+   * @param BigNumber $numerator
+   * @param BigNumber $denominator
+   */
   static protected function AbsRemainderFast($numerator, $denominator )
   {
+    $numerator = clone static::FromValue($numerator);
+    $denominator = clone static::FromValue($denominator);
+
     $intDenominator = $denominator->ToInt();
+    $fractions = $numerator->_decimals > 0 ? (new BigNumber($numerator))->Frac() : null;
+    $numerator->Integer();
 
     // @see http://www.devx.com/tips/Tip/39012
     // do a fast mod
@@ -1622,6 +1652,12 @@ class BigNumber
         $numerator->_numbers[] = $s;
         $length += 1;
       }
+    }
+
+    // do we have a fraction we want to add.
+    if( $fractions != null )
+    {
+      $remainder->Add( $fractions->Abs() );
     }
 
     // clean up the quotient and the remainder.
@@ -2858,10 +2894,11 @@ class BigNumber
       $power = new BigNumber( $base );
 
       $result = BigNumberConstants::One();
+      $paddedPrecision = BigNumberConstants::PrecisionPadding($precision);
       for ( $i = 1; $i < self::BIGNUMBER_MAX_EXP_ITERATIONS; ++$i )
       {
         //  calculate the number up to the precision we are after.
-        $calulatedNumber = (new BigNumber( $power ))->Div( $fact, BigNumberConstants::PrecisionPadding($precision));
+        $calulatedNumber = (new BigNumber( $power ))->Div( $fact, $paddedPrecision );
         if ( $calulatedNumber->IsZero() )
         {
           break;
@@ -2871,10 +2908,10 @@ class BigNumber
         $result->Add( $calulatedNumber );
 
         // x * x * x ...
-        $power->Mul( $base, BigNumberConstants::PrecisionPadding($precision));
+        $power->Mul( $base, $paddedPrecision );
 
         //  1 * 2 * 3 ...
-        $fact->Mul( (int)($i+1), BigNumberConstants::PrecisionPadding($precision));
+        $fact->Mul( (int)($i+1), $paddedPrecision );
       }
 
       //  the decimal part of the number.
