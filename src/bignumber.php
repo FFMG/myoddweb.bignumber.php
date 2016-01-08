@@ -1363,6 +1363,14 @@ class BigNumber
     $numerator = clone static::FromValue($numerator);
     $denominator = clone static::FromValue($denominator);
 
+    //  can we use the 'fast' way?
+//    if( $denominator->_decimals == 0 && count($denominator->_numbers) <= 9 )
+//    {
+//      //  we can use the fast way.
+//      static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
+//      return;
+//    }
+
     // are we trying to divide by zero?
     if ($denominator->IsZero())
     {
@@ -1448,6 +1456,145 @@ class BigNumber
     // clean up the quotient and the remainder.
     $remainder->PerformPostOperations( $remainder->_decimals );
     $quotient->PerformPostOperations( $quotient->_decimals );
+  }
+
+  /**
+   * Calculate the quotient and remainder of a division
+   * @see https://en.wikipedia.org/wiki/Modulo_operation
+   * @param BigNumber $numerator the numerator been divided.
+   * @param BigNumber $denominator the denominator dividing the number.
+   * @param BigNumber& $quotient the quotient of the division
+   * @param BigNumber& $remainder the remainder.
+   */
+  static protected function AbsQuotientAndRemainderFast($numerator, $denominator, &$quotient, &$remainder)
+  {
+    //  clone
+    $numerator = clone static::FromValue($numerator);
+    $denominator = clone static::FromValue($denominator);
+
+    // are we trying to divide by zero?
+    if ($denominator->IsZero())
+    {
+      // those are not value numbers.
+      $remainder = new BigNumber(); $remainder->_nan = true;
+      $quotient = new BigNumber(); $quotient->_nan = true;
+      return;
+    }
+
+    // no-clone as we want to change the actual values.
+    $quotient = static::FromValue($quotient);
+    $remainder = static::FromValue($remainder);
+
+    // reset the quotient to 0.
+    $quotient = BigNumberConstants::Zero();
+
+    // and set the current remainder to be the numerator.
+    // that way we know that we can return now something valid.
+    // 20 % 5 = 0 ('cause 5*4 = 20 remainder = 0)
+    // we need the number to be positive for now.
+    $remainder = clone $numerator;
+    $remainder->_neg = false;
+
+    // if the numerator is greater than the denominator
+    // then there is nothing more to do, we will never be able to
+    // divide anything and have a quotient
+    // the the remainder has to be the number and the quotient has to be '0'
+    // so 5 % 20 = 5 ( remainder = 5 / quotient=0 = 0*20 + 5)
+    if (static::AbsCompare($numerator, $denominator) < 0)
+    {
+      return;
+    }
+
+    //  get the remained.
+    $remainder = static::AbsRemainderFast( clone $numerator, $denominator );
+
+    //  get the positive denominator.
+    $intDenominator = $denominator->Abs()->ToInt();
+
+    $offset = count($denominator->_numbers) + 1;
+    $length = count($numerator->_numbers);
+
+    // do a fast division.
+    // @see http://codereview.stackexchange.com/questions/6331/very-large-a-divide-at-a-very-large-b
+    // get the first 'x' numbers, as we are in reverse, we get the last x numbers.
+    // we then work one number at at a time.
+    $numbers = [];
+
+    //  get the first 'x' numbers.
+    $number = $numerator->_MakeNumberAtIndexForward(0, $offset );
+
+    // now get the numbers while we have numbers available.
+    $array = array_slice($numerator->_numbers, 0, $length - $offset );
+    $length -= $offset;
+    for(;;)
+    {
+      // the div of that number
+      $div = (int)($number / $intDenominator);
+      $tnumber = [];
+      while ($div > 0)
+      {
+        $s = $div % self::BIGNUMBER_BASE;
+        $div = (int)((int)$div / (int)self::BIGNUMBER_BASE);
+        $tnumber[] = $s;
+      }
+      $numbers = array_merge($numbers, array_reverse( $tnumber) );
+
+      // are we done?
+      if( $length <= 0 )
+      {
+        $quotient = static ::_FromSafeValues($quotient, array_reverse( $numbers ), 0, false );
+        break;
+      }
+
+      // the mod of that number.
+      $mod = $number % $intDenominator;
+      $numerator = new BigNumber( $mod );
+
+      //  add the number in front
+      array_unshift($numerator->_numbers, $array[$length-1] );
+      --$length;
+      $number = $numerator->ToInt();
+    }
+  }
+
+  static protected function AbsRemainderFast($numerator, $denominator )
+  {
+    $offset = 9;
+    $intDenominator = $denominator->ToInt();
+
+    // @see http://www.devx.com/tips/Tip/39012
+    // do a fast mod
+    $length = count($numerator->_numbers);
+    for(;;)
+    {
+      // get the first 'x' numbers, as we are in reverse, we get the last x numbers.
+      $number = $numerator->_MakeNumberAtIndexForward(0, $offset );
+      $mod = $number % $intDenominator;
+
+      if( $length - $offset < 0 )
+      {
+        //  finalise the remained
+        $remainder = new BigNumber( $mod );
+
+        // break out of the mod loop
+        break;
+      }
+
+      // remove the offset numbers, but, we are working in reverse...
+      $numerator->_numbers = array_slice($numerator->_numbers, 0, $length - $offset );
+      $length -= $offset;
+
+      while ($mod > 0)
+      {
+        $s = $mod % self::BIGNUMBER_BASE;
+        $mod = (int)((int)$mod / (int)self::BIGNUMBER_BASE);
+        $numerator->_numbers[] = $s;
+        $length += 1;
+      }
+    }
+
+    // clean up the quotient and the remainder.
+    return $remainder->PerformPostOperations( $remainder->_decimals );
   }
 
   /**
@@ -1847,7 +1994,7 @@ class BigNumber
    * @param number $index the position we are starting from
    * @param number $length the number of items we want to get.
    * @param number $offset the offset we are shifting by.
-   * @return number the number represented at the index/lenght
+   * @return number the number represented at the index/length
    */
   private function _MakeNumberAtIndexWithDecimal( $index, $length, $offset)
   {
@@ -1857,16 +2004,16 @@ class BigNumber
     $shiftedIndex = $index - $offset;
     if( $shiftedIndex >= 0 )
     {
-      // even by reversing back a little, we still are withing our real number.
-      // if we have 1234.45 and we want #5 lenght #2 ofset 2, then we can still return '34'
-      // that number still falls withing our 'real' number.
+      // even by reversing back a little, we still are within our real number.
+      // if we have 1234.45 and we want #5 length #2 offset 2, then we can still return '34'
+      // that number still falls within our 'real' number.
       return $this->_MakeNumberAtIndex($shiftedIndex, $length);
     }
     else if( $shiftedIndex <= -1 * $length)
     {
       // by reversing the way we did, all the numbers we are getting
-      // will now be zeros, for example, we are have a number 1234 with an offset of 5 and lenght of 2
-      // so the number reall is 1234.00000 so we know that the number, has to be '0'
+      // will now be zeros, for example, we are have a number 1234 with an offset of 5 and length of 2
+      // so the number real is 1234.00000 so we know that the number, has to be '0'
       return 0;
     }
 
@@ -1917,6 +2064,39 @@ class BigNumber
     }
 
     for ( $pos = $startPos; $pos >= $index; --$pos)
+    {
+      // add this number to our.
+      $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers[ $pos ];
+    }
+    return $number;
+  }
+
+  /**
+   * Get a number from our array of numbers at a certain offset and for a certain length.
+   * So if we have an array of numbers 1,2,3,4,5,6,7,8,9 and we want to get the number from #2 with a len of 2 the number would be  '34', (3,4)
+   * If the number is too large, then there is a real risk that the number will overflow.
+   * Yet, we do not check for that as we do not want to slow this function down, (it is an internal function, so invalid numbers should never happen).
+   * @param number $index the position we are starting from
+   * @param number $length the number of items we want to get.
+   * @param number $offset the offset we are shifting by.
+   * @return number the number represented at the index/length
+   */
+  private function _MakeNumberAtIndexForward( $index, $length)
+  {
+    // the return number.
+    $number = 0;
+
+    // the total we are after.
+    $count = count($this->_numbers);
+    $endPos = $count - $length - $index;
+    $startPos = $count - $index -1;
+
+    if( $endPos <= 0 ){
+      $startPos = $count -1;
+      $endPos = $length > $count ? 0 : ($count - $length);
+    }
+
+    for ( $pos = $startPos; $pos >= $endPos; --$pos)
     {
       // add this number to our.
       $number = ($number * self::BIGNUMBER_BASE) + $this->_numbers[ $pos ];
