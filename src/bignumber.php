@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.501";
-  const BIGNUMBER_VERSION_NUMBER = "0001501";
+  const BIGNUMBER_VERSION        = "0.1.502";
+  const BIGNUMBER_VERSION_NUMBER = "0001502";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -797,7 +797,6 @@ class BigNumber
     // we now need to reverse the array as this is the way all our numbers are.
     $numbers = array_reverse( $numbers );
   }
-
 
   /**
    * Convert a NUMBERS number to an integer.
@@ -1622,6 +1621,7 @@ class BigNumber
     $numerator->Integer();
 
     // @see http://www.devx.com/tips/Tip/39012
+    // @see https://bytes.com/topic/software-development/insights/793965-how-find-modulus-very-large-number
     // do a fast mod
     $length = count($numerator->_numbers);
     for(;;)
