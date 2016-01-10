@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.502";
-  const BIGNUMBER_VERSION_NUMBER = "0001502";
+  const BIGNUMBER_VERSION        = "0.1.503";
+  const BIGNUMBER_VERSION_NUMBER = "0001503";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1185,7 +1185,17 @@ class BigNumber
     // calculate both the quotient and remainder.
     $quotient = new BigNumber();
     $remainder = new BigNumber();
-    static::QuotientAndRemainder($this, $denominator, $quotient, $remainder);
+    static::AbsQuotientAndRemainder($this, $denominator, $quotient, $remainder);
+
+    // clean up the quotient and the remainder.
+    if ( !$denominator->IsZero())
+    {
+      if ($this->IsNeg())
+      {
+        // 10 modulo -3 = -2
+        $remainder->_neg = true;
+      }
+    }
 
     // return the remainder
     return $remainder;
@@ -1204,39 +1214,10 @@ class BigNumber
     // calculate both the quotient and remainder.
     $quotient = new BigNumber();
     $remainder = new BigNumber();
-    static::QuotientAndRemainder($this, $denominator, $quotient, $remainder);
+    static::AbsQuotientAndRemainder($this, $denominator, $quotient, $remainder);
 
     // return the quotient
     return $quotient;
-  }
-
-  /**
-   * Calculate the quotien and remainder of a division
-   * @see https://en.wikipedia.org/wiki/Modulo_operation
-   * @param const BigNumber numerator the numerator been devided.
-   * @param const BigNumber denominator the denominator dividing the number.
-   * @param BigNumber quotient the quotient of the division
-   * @param BigNumber remainder the remainder.
-   */
-  static function QuotientAndRemainder( $numerator, $denominator, &$quotient, &$remainder)
-  {
-    $numerator = static::FromValue($numerator);
-    $denominator = static::FromValue($denominator);
-    $quotient = static::FromValue($quotient);
-    $remainder = static::FromValue($remainder);
-
-    // do it all positive
-    static::AbsQuotientAndRemainder($numerator, $denominator, $quotient, $remainder);
-
-    // clean up the quotient and the remainder.
-    if ( !$denominator->IsZero())
-    {
-      if ($numerator->IsNeg())
-      {
-        // 10 modulo -3 = -2
-        $remainder->_neg = true;
-      }
-    }
   }
 
   /**
@@ -1368,7 +1349,7 @@ class BigNumber
    */
   static protected function AbsQuotientAndRemainder($numerator, $denominator, &$quotient, &$remainder)
   {
-    //  clone
+    //  clone and make sure that the values are bignumbers.
     $numerator = clone static::FromValue($numerator);
     $denominator = clone static::FromValue($denominator);
 
@@ -1382,6 +1363,7 @@ class BigNumber
     }
 
     // no-clone as we want to change the actual values.
+    // all we are doing is making sure that the value are big numbers.
     $quotient = static::FromValue($quotient);
     $remainder = static::FromValue($remainder);
 
@@ -1393,7 +1375,7 @@ class BigNumber
     // 20 % 5 = 0 ('cause 5*4 = 20 remainder = 0)
     // we need the number to be positive for now.
     $remainder = clone $numerator;
-    $remainder->_neg = false;
+    $remainder->Abs();
 
     // if the numerator is greater than the denominator
     // then there is nothing more to do, we will never be able to
@@ -1402,50 +1384,34 @@ class BigNumber
     // so 5 % 20 = 5 ( remainder = 5 / quotient=0 = 0*20 + 5)
     if (static::AbsCompare($numerator, $denominator) < 0)
     {
+      // no need to set the values, $remainder has been set to the numerator
+      // and the quotient has been set to zero as well.
       return;
     }
 
-    //  can we use the 'fast' way?
-    if( $denominator->_decimals == 0 )
-    {
-      $denoMinatorLen = count($denominator->_numbers);
-      if( $denoMinatorLen <= self::BIGNUMBER_MAX_NUM_LEN )
-      {
-        // can we go even faster? If the numbers are smaller than our max int then we can.
-        if( $numerator->_decimals == 0 && count($numerator->_numbers ) <= self::BIGNUMBER_MAX_NUM_LEN )
-        {
-          $n = $numerator->Abs()->ToInt();
-          $d = $denominator->Abs()->ToInt();
-          $num = (int)($n / $d);
-          $mod = $n % $d;
-          $quotient = new BigNumber( $num );
-          $remainder = new BigNumber( $mod );
-          return;
-        }
+    //
+    //  Try and do the fast calculations where possible.
+    //
+    // numerator + denominator small enough
 
-        if( $denoMinatorLen == self::BIGNUMBER_MAX_NUM_LEN )
-        {
-          //  because the numerator is the same len as BIGNUMBER_MAX_NUM_LEN
-          // we need to make sure that the first number is not smaller than the first number
-          // of the denominator.
-          // otherwise that will not work.
-          if( $numerator->_decimals[self::BIGNUMBER_MAX_NUM_LEN] < $denominator->_decimals[self::BIGNUMBER_MAX_NUM_LEN] )
-          {
-            // we can use the fast way as the denominator is smaller than the numerator.
-            static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
-            return;
-          }
-        }
-        else
-        {
-          // we can use the fast way as the denominator is smaller than the numerator.
-          static::AbsQuotientAndRemainderFast($numerator, $denominator, $quotient, $remainder);
-          return;
-        }
-      }
+    if( static::AbsQuotientAndRemainderWithSmallNumbers($numerator, $denominator, $quotient, $remainder) )
+    {
+      return;
     }
 
-    // do a 'quick' remainder calculations.
+    if( static::AbsQuotientAndRemainderWithSmallDenominator($numerator, $denominator, $quotient, $remainder) )
+    {
+      return;
+    }
+
+    //
+    //  We now have to do it the hard way...
+    //
+    if( static::AbsQuotientAndRemainderLargeNumeratorAndDenominator($numerator, $denominator, $quotient, $remainder) )
+    {
+      return;
+    }
+
     //
     // 1- look for the 'max' denominator.
     //    we need the number to be positive.
@@ -1459,7 +1425,9 @@ class BigNumber
       $base_multiplier->MultiplyByBase(1);
     }
 
+    //
     // 2- subtract, (if need be, then update the quotient accordingly).
+    //
     for (;;)
     {
       // make sure that the max denominator and multiplier
@@ -1500,54 +1468,192 @@ class BigNumber
   }
 
   /**
-   * Calculate the quotient and remainder of a division
-   * @see https://en.wikipedia.org/wiki/Modulo_operation
-   * @param BigNumber $numerator the numerator been divided.
-   * @param BigNumber $denominator the denominator dividing the number.
-   * @param BigNumber& $quotient the quotient of the division
-   * @param BigNumber& $remainder the remainder.
+   *
+   * @param BigNumber $numerator
+   * @param BigNumber $denominator
+   * @param BigNumber $quotient
+   * @param BigNumber $remainder
    */
-  static protected function AbsQuotientAndRemainderFast($numerator, $denominator, &$quotient, &$remainder)
+  static protected function AbsQuotientAndRemainderLargeNumeratorAndDenominator($numerator, $denominator, &$quotient, &$remainder)
   {
-    //  clone
-    $numerator = clone static::FromValue($numerator);
-    $denominator = clone static::FromValue($denominator);
+    return false;
 
-    // are we trying to divide by zero?
-    if ($denominator->IsZero())
+    // remove the decimals, they are not needed and will be re-added later.
+    $denominatorWithNoDecimals = clone $denominator;
+    $numeratorWithNoDecimals = clone $numerator;
+    $decimals = $denominatorWithNoDecimals->_decimals > $numeratorWithNoDecimals->_decimals ? $denominatorWithNoDecimals->_decimals : $numeratorWithNoDecimals->_decimals;
+    $denominatorWithNoDecimals->MultiplyByBase( $decimals );
+    $numeratorWithNoDecimals->MultiplyByBase( $decimals );
+
+    //  the number of numbers <sic>
+    $remainder = clone $numeratorWithNoDecimals;
+    $denominatorLen = count($denominatorWithNoDecimals->_numbers);
+    $remainderLen = count($remainder->_numbers);
+
+    // the total number of items to get
+    $numberOfItemsToGet = $denominatorLen;
+    $numeratorLen = count( $numeratorWithNoDecimals->_numbers );
+
+    // the final result array...
+    $numbers = [];
+    for(;;)
     {
-      // those are not value numbers.
-      $remainder = new BigNumber(); $remainder->_nan = true;
-      $quotient = new BigNumber(); $quotient->_nan = true;
-      return;
+      // where we will be inserting the new number(s)
+      $insertAtPos = $numeratorLen - count($remainder->_numbers);
+
+      // get that same number of numbers<sic> from the numerator
+      $startPos = $remainderLen - $numberOfItemsToGet;
+
+      // if negative, then the number we are left, is the remainder.
+      if( $startPos < 0 )
+      {
+        $numberOfItemsToGet = $remainderLen;
+        $startPos = 0;
+      }
+
+      //  the number we are going to work with
+      $thisNumerator = static::_FromSafeValues( new BigNumber(), array_slice( $remainder->_numbers, $startPos, $numberOfItemsToGet ), 0, false );
+
+      // if this numerator, (part of the number), is smaller than the denominator
+      // then we need to add one more number to make sure it is smaller.
+      if( static::AbsCompare($thisNumerator, $denominatorWithNoDecimals ) < 0 )
+      {
+        //  can we actually go any further>
+        if( $startPos == 0 )
+        {
+          $remainder->_numbers = $thisNumerator->_numbers;
+          break;
+        }
+
+        // add zero, to make space.
+        $numberOfItemsToGet++;
+        continue;
+      }
+
+      // this will be the number we are left with.
+      $remainder->_numbers = array_slice( $remainder->_numbers, 0, $startPos );
+      $remainderLen -= $numberOfItemsToGet;
+
+      // if the first item in the remainder is a zero then we can x10
+      $multiplier = 0;
+      $denominatorLenMultiplied = $denominatorLen;
+      $denominatorWithNoDecimalsMultiplied = clone $denominatorWithNoDecimals;
+      while( $remainderLen > 0 && $remainder->_numbers[$remainderLen-1] == 0 )
+      {
+        // remove it, (divide by 10)
+        unset( $remainder->_numbers[$remainderLen-1]);
+
+        // update the length.
+        --$remainderLen;
+
+        // make sure we track how much to shift it all.
+        ++$multiplier;
+      }
+      if( $multiplier > 0 )
+      {
+        $thisNumerator->MultiplyByBase( $multiplier );
+        $denominatorWithNoDecimalsMultiplied->MultiplyByBase( $multiplier );
+        $denominatorLenMultiplied += $multiplier;
+      }
+
+      // how many times does the denominator go into this $remainder
+      $number = 0;
+      for(;;)
+      {
+        ++$number;
+        $thisNumerator = static::AbsSub($thisNumerator, $denominatorWithNoDecimalsMultiplied );
+        $numbersLeft = count($thisNumerator->_numbers);
+
+        // check if it will fit one more time.
+        if( $numbersLeft > $denominatorLenMultiplied )
+        {
+          //  we still have more than enough left.
+          continue;
+        }
+
+        if( $numbersLeft < $denominatorLenMultiplied )
+        {
+          //  no need to go further it will not fit
+          // whatever is left here, needs to be added to this number.
+          break;
+        }
+
+        // if the numerator is smaller than the denominator, we cannot go further.
+        if( static::AbsCompare($thisNumerator, $denominatorWithNoDecimalsMultiplied ) < 0 )
+        {
+          //  we cannot subtract the denominator as it will result in a negative number.
+          // and if we have a negative number, then it is no good to us.
+          break;
+        }
+      }
+
+      $tnumber = [];
+      while ($number > 0)
+      {
+        $s = $number % self::BIGNUMBER_BASE;
+        $number = (int)((int)$number / (int)self::BIGNUMBER_BASE);
+        $tnumber[] = $s;
+      }
+      foreach( array_reverse($tnumber) as $number )
+      {
+        // add the number of times the numerator fitted to our numbers.
+        while( count($numbers) <= $insertAtPos+$multiplier )
+        {
+          $numbers[count($numbers)] = 0;
+        }
+        $numbers[$insertAtPos++] += $number;
+      }
+
+      // restart getting the next list the length of numerators.
+      $numberOfItemsToGet = $denominatorLenMultiplied;
+
+      // if we have anything left in 'this numerator', then we have to add it back
+      // to our remainder.
+      $remainder->_numbers = array_merge($remainder->_numbers, $thisNumerator->_numbers );
+      $remainingNumberLen = count($thisNumerator->_numbers);
+
+      // update the length.
+      $remainderLen += $remainingNumberLen;
+
+      // we have to get at least those numbers.
+      $numberOfItemsToGet += $remainingNumberLen;
     }
 
-    // no-clone as we want to change the actual values.
-    $quotient = static::FromValue($quotient);
-    $remainder = static::FromValue($remainder);
+    // rebuild the numbers, remember that the numbers we created are in reverse.
+    $quotient = static::_FromSafeValues($quotient, array_reverse( $numbers ), 0, false );
+    $remainder = static::_FromSafeValues(new BigNumber(), $remainder->_numbers, $decimals, false );
 
-    // reset the quotient to 0.
-    $quotient = BigNumberConstants::Zero();
+    // return the newly created number
+    return true;
+  }
 
-    // and set the current remainder to be the numerator.
-    // that way we know that we can return now something valid.
-    // 20 % 5 = 0 ('cause 5*4 = 20 remainder = 0)
-    // we need the number to be positive for now.
-    $remainder = clone $numerator;
-    $remainder->_neg = false;
-
-    // if the numerator is greater than the denominator
-    // then there is nothing more to do, we will never be able to
-    // divide anything and have a quotient
-    // the the remainder has to be the number and the quotient has to be '0'
-    // so 5 % 20 = 5 ( remainder = 5 / quotient=0 = 0*20 + 5)
-    if (static::AbsCompare($numerator, $denominator) < 0)
+  static protected function AbsQuotientAndRemainderWithSmallDenominator($numerator, $denominator, &$quotient, &$remainder )
+  {
+    if( $denominator->_decimals != 0 )
     {
-      return;
+      return false;
     }
 
-    //  get the remained.
-    $remainder = static::AbsRemainderFast( $numerator, $denominator );
+    // is it too long?
+    $denoMinatorLen = count($denominator->_numbers);
+    if( $denoMinatorLen > self::BIGNUMBER_MAX_NUM_LEN )
+    {
+      return false;
+    }
+
+    if( $denoMinatorLen == self::BIGNUMBER_MAX_NUM_LEN )
+    {
+      //  because the numerator is the same len as BIGNUMBER_MAX_NUM_LEN
+      // we need to make sure that the first number is not smaller than the first number
+      // of the denominator otherwise that will not work.
+      if( $numerator->_decimals[self::BIGNUMBER_MAX_NUM_LEN] >= $denominator->_decimals[self::BIGNUMBER_MAX_NUM_LEN] )
+      {
+        return false;
+      }
+    }
+
+    //  get the remained fast.
+    $remainder = static::AbsRemainderWithSmallDenominator( $numerator, $denominator );
 
     //  get the positive denominator.
     $intDenominator = $denominator->Abs()->ToInt();
@@ -1604,6 +1710,49 @@ class BigNumber
       --$length;
       $number = $numerator->ToInt();
     }
+
+    // clean up the quotient and the remainder.
+    $remainder->PerformPostOperations( $remainder->_decimals );
+    $quotient->PerformPostOperations( $quotient->_decimals );
+
+    // success
+    return true;
+  }
+
+  static protected function AbsQuotientAndRemainderWithSmallNumbers($numerator, $denominator, &$quotient, &$remainder)
+  {
+    //  can we use the 'fast' way?
+    if( $denominator->_decimals != 0 || $numerator->_decimals != 0 )
+    {
+      //  we cannot do decimals.
+      return false;
+    }
+
+    $denoMinatorLen = count($denominator->_numbers);
+    if( $denoMinatorLen > self::BIGNUMBER_MAX_NUM_LEN )
+    {
+      return false;
+    }
+
+    // can we go even faster? If the numbers are smaller than our max int then we can.
+    if( count($numerator->_numbers ) > self::BIGNUMBER_MAX_NUM_LEN )
+    {
+      return false;
+    }
+
+    $n = $numerator->Abs()->ToInt();
+    $d = $denominator->Abs()->ToInt();
+    $num = (int)($n / $d);
+    $mod = $n % $d;
+    $quotient = new BigNumber( $num );
+    $remainder = new BigNumber( $mod );
+
+    // clean up the quotient and the remainder.
+    $remainder->PerformPostOperations( $remainder->_decimals );
+    $quotient->PerformPostOperations( $quotient->_decimals );
+
+    // success
+    return true;
   }
 
   /**
@@ -1611,7 +1760,7 @@ class BigNumber
    * @param BigNumber $numerator
    * @param BigNumber $denominator
    */
-  static protected function AbsRemainderFast($numerator, $denominator )
+  static protected function AbsRemainderWithSmallDenominator($numerator, $denominator )
   {
     $numerator = clone static::FromValue($numerator);
     $denominator = clone static::FromValue($denominator);
@@ -1889,7 +2038,7 @@ class BigNumber
     for (;;)
     {
       // get the quotient and remainder.
-      static::QuotientAndRemainder($number, $rhs, $quotient, $remainder);
+      static::AbsQuotientAndRemainder($number, $rhs, $quotient, $remainder);
 
       // add the quotient to the current number.
       // we add the number in front as this is in reverse.
