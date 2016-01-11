@@ -58,7 +58,7 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.600";
+  const BIGNUMBER_VERSION        = "0.1.601";
   const BIGNUMBER_VERSION_NUMBER = "0001600";
 
   const BIGNUMBER_BASE = 10;
@@ -1498,7 +1498,6 @@ class BigNumber
         // this will never work as the first 'BIGNUMBER_MAX_NUM_LEN' digits are too small.
         return false;
       }
-      echo $numerator->ToString(), " - ", $denominator->ToString(), "<br>";
     }
 
     //  get the remained fast.
