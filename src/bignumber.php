@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.602";
-  const BIGNUMBER_VERSION_NUMBER = "0001602";
+  const BIGNUMBER_VERSION        = "0.1.603";
+  const BIGNUMBER_VERSION_NUMBER = "0001603";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1240,7 +1240,7 @@ class BigNumber
    * 5 (base10) / 10 (base10) = 0.5
    * @param number divisor the number of times we are multiplying this by.
    */
-  protected function DevideByBase( $divisor )
+  protected function DivideByBase( $divisor )
   {
     // set the decimals
     $this->_decimals += $divisor;
@@ -1382,12 +1382,14 @@ class BigNumber
     //
     //  Try and do the fast calculations where possible.
     //
-    // numerator + denominator small enough
+
+    // numerator + denominator small enough to use the CPU
     if( static::AbsQuotientAndRemainderWithSmallNumbers($numerator, $denominator, $quotient, $remainder) )
     {
       return true;
     }
 
+    // only the denominator is small enough to use the cpu.
     if( static::AbsQuotientAndRemainderWithSmallDenominator($numerator, $denominator, $quotient, $remainder) )
     {
       return true;
@@ -1480,13 +1482,13 @@ class BigNumber
   static protected function AbsQuotientAndRemainderWithSmallDenominator($numerator, $denominator, &$quotient, &$remainder )
   {
     // is it too long?
-    $denoMinatorLen = count($denominator->_numbers);
-    if( $denoMinatorLen > self::BIGNUMBER_MAX_NUM_LEN )
+    $denominatorLen = count($denominator->_numbers);
+    if( $denominatorLen > self::BIGNUMBER_MAX_NUM_LEN )
     {
       return false;
     }
 
-    if( $denoMinatorLen == self::BIGNUMBER_MAX_NUM_LEN )
+    if( $denominatorLen == self::BIGNUMBER_MAX_NUM_LEN )
     {
       // because the numerator is the same len as BIGNUMBER_MAX_NUM_LEN
       // we have to make sure that the first 'BIGNUMBER_MAX_NUM_LEN' digits of the numerator are not bigger than the denominator.
@@ -1577,8 +1579,8 @@ class BigNumber
    */
   static protected function AbsQuotientAndRemainderWithSmallNumbers($numerator, $denominator, &$quotient, &$remainder)
   {
-    $denoMinatorLen = count($denominator->_numbers);
-    if( $denoMinatorLen > self::BIGNUMBER_MAX_NUM_LEN )
+    $denominatorLen = count($denominator->_numbers);
+    if( $denominatorLen > self::BIGNUMBER_MAX_NUM_LEN )
     {
       return false;
     }
@@ -1966,7 +1968,7 @@ class BigNumber
       $c = static::AbsMul( $tlhs, $trhs, 0);
 
       //  set the current number of decimals.
-      $c->DevideByBase( $decimals );
+      $c->DivideByBase( $decimals );
 
       // return the value.
       return $c->PerformPostOperations( $precision );
@@ -2383,6 +2385,9 @@ class BigNumber
       return $base;
     }
 
+    // padded precision.
+    $paddedPrecision = BigNumberConstants::PrecisionPadding($precision);
+
     // copy the base and exponent and make sure that they are positive.
     $copyBase = clone $base; $copyBase->Abs();
     $copyExp = clone $exp; $copyExp->Abs();
@@ -2393,9 +2398,9 @@ class BigNumber
     // if we have decimals, we need to do it the hard/long way...
     if ( $copyExp->_decimals > 0)
     {
-      $copyBase->Ln(BigNumberConstants::PrecisionPadding($precision)); //  we need the correction, do we don't loose it too quick.
-      $copyBase->Mul( $copyExp, BigNumberConstants::PrecisionPadding($precision));
-      $result = $copyBase->Exp( BigNumberConstants::PrecisionPadding($precision) );
+      $copyBase->Ln( $paddedPrecision ); //  we need the correction, do we don't loose it too quick.
+      $copyBase->Mul( $copyExp,  $paddedPrecision );
+      $result = $copyBase->Exp( $paddedPrecision );
     }
     else
     {
@@ -2405,7 +2410,7 @@ class BigNumber
         // if it is odd...
         if ($copyExp->IsOdd())
         {
-          $result = static::AbsMul( $result, $copyBase, BigNumberConstants::PrecisionPadding($precision));
+          $result = static::AbsMul( $result, $copyBase, $paddedPrecision );
         }
 
         // divide by 2 with no decimal places.
@@ -2416,7 +2421,7 @@ class BigNumber
         }
 
         // multiply the base by itself.
-        $copyBase = static::AbsMul( $copyBase, $copyBase, BigNumberConstants::PrecisionPadding($precision));
+        $copyBase = static::AbsMul( $copyBase, $copyBase, $paddedPrecision );
       }
     }
 
@@ -2521,7 +2526,7 @@ class BigNumber
 
     // add 0.5 and floor(...) it.
     $number = new BigNumber( 5 );
-    $number->DevideByBase( ($precision+1));
+    $number->DivideByBase( ($precision+1));
     $x = static::AbsAdd($number, $this);
     $this->_Copy( $x->Floor( $precision ) );
 
@@ -2941,6 +2946,7 @@ class BigNumber
    */
   protected function RootNewton( $nthroot, $precision = self::BIGNUMBER_DEFAULT_PRECISION )
   {
+    // return $this->sqrt11($precision );
     if ( $this->Compare( BigNumberConstants::One() ) == 0)
     {
       $this->_Copy( BigNumberConstants::One() );
