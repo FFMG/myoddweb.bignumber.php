@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.601";
-  const BIGNUMBER_VERSION_NUMBER = "0001600";
+  const BIGNUMBER_VERSION        = "0.1.602";
+  const BIGNUMBER_VERSION_NUMBER = "0001602";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -1405,10 +1405,10 @@ class BigNumber
 
   /**
    * Calculate the quotient and remainder from a +ve numerator/denominator with no decimals.
-   * This function is used when both numrator/denominators are greater than self::BIGNUMBER_MAX_NUM_LEN.
+   * This function is used when both numerator/denominators are greater than self::BIGNUMBER_MAX_NUM_LEN.
    * @param BigNumber $numerator the numerator to use.
    * @param BigNumber $denominator the denominator.
-   * @param BigNumber $quotient the return quotien value.
+   * @param BigNumber $quotient the return quotient value.
    * @param BigNumber $remainder the remainder value.
    * @return boolean success or not.
    */
@@ -1473,7 +1473,7 @@ class BigNumber
    * This function is used when the denominators is smaller than self::BIGNUMBER_MAX_NUM_LEN.
    * @param BigNumber $numerator the numerator to use.
    * @param BigNumber $denominator the denominator.
-   * @param BigNumber $quotient the return quotien value.
+   * @param BigNumber $quotient the return quotient value.
    * @param BigNumber $remainder the remainder value.
    * @return boolean success or not.
    */
