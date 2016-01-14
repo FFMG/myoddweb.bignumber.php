@@ -269,5 +269,33 @@ class TestDiv extends PHPUnit_Framework_TestCase
       $this->assertSame("-4096", $z);
     }
   }
+
+  public function testDivideBigNumeratorBigDenominator()
+  {
+    $x = new \MyOddWeb\BigNumber("1234567890987654321" );
+    $z = $x->Div( "23456789876543" )->ToString();
+    $this->assertSame("52631.5790645434084361643505059107499537755787148740992012211246758467969873975942860529849895592435220682", $z);
+  }
+
+  public function testDivideBigNumeratorSmallDenominator()
+  {
+    $x = new \MyOddWeb\BigNumber( "1234567890987654321" );
+    $z = $x->Div("234567898")->ToString();
+    $this->assertSame("5263157923.628809262723580359662002854286565674898958253869845395468394400669438577652258281310087879118053912", $z);
+  }
+
+  public function testDivideBigNumeratorSmallDenominatorZeros()
+  {
+    $x = new \MyOddWeb\BigNumber( "1234567890987654321" );
+    $z = $x->Div("123456789")->ToString();
+    $this->assertSame("10000000008.0000000729000006633900060368490549353263999114702391943791766688505076865396199475105415223459278533", $z);
+  }
+
+  public function DivideSmallNumeratorSmallDenominator()
+  {
+    $x = new \MyOddWeb\BigNumber( "123456789" );
+    $z = $x->Div("23456789")->ToString();
+    $this->assertSame("5.2631580989196773693108634775203033970250574364632772200832773829359167616675922693425771106181668769", $z);
+  }
 }
 ?>

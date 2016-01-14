@@ -58,8 +58,8 @@ class BigNumber
  *   #2-4 = minor
  *   #5-7 = build
  */
-  const BIGNUMBER_VERSION        = "0.1.603";
-  const BIGNUMBER_VERSION_NUMBER = "0001603";
+  const BIGNUMBER_VERSION        = "0.1.604";
+  const BIGNUMBER_VERSION_NUMBER = "0001604";
 
   const BIGNUMBER_BASE = 10;
   const BIGNUMBER_DEFAULT_PRECISION = 100;
@@ -127,7 +127,8 @@ class BigNumber
     switch ( $num )
     {
     case 0:
-      $this->_Default();
+      // just make it zero
+      $this->_ParseNumber( 0 );
       break;
 
     case 1:
@@ -1502,8 +1503,8 @@ class BigNumber
       }
     }
 
-    //  get the remained fast.
-    $remainder = static::AbsRemainderWithSmallDenominator( $numerator, $denominator );
+    // assume that the remainder is the full amount.
+    $remainder = clone $numerator;
 
     //  get the positive denominator.
     $intDenominator = $denominator->Abs()->ToInt();
@@ -1528,21 +1529,32 @@ class BigNumber
     // now create an array of our remaining numbers.
     // we will use them all one by one to calculate the 'final' denominator.
     $array = array_slice($numerator->_numbers, 0, $length - $offset );
+    $oneOverIntDenominator = 1/(float)$intDenominator;
     $length -= $offset;
     for(;;)
     {
-      // the div of that number
-      $div = (int)($number / $intDenominator);
+      // the div of that number, (we use 1/x as it is a shade faster).
+      $div = (int)($number * $oneOverIntDenominator);
+      // if the number is 0 it means that the section we just did
+      // (the '$number'), was itself == to zero.
 
-      // add the numbers, in reverse to our final array.
-      $tnumber = [];
-      while ($div > 0)
+      if( 0 == $div )
       {
-        $s = $div % self::BIGNUMBER_BASE;
-        $div = (int)((int)$div / (int)self::BIGNUMBER_BASE);
-        $tnumber[] = $s;
+        // if the number is zero, no need to waste time working things out
+        $numbers[] = 0;
       }
-      $numbers = array_merge($numbers, array_reverse( $tnumber) );
+      else
+      {
+        // add the numbers, in reverse to our final array.
+        $tnumber = [];
+        while ($div > 0)
+        {
+          $s = $div % self::BIGNUMBER_BASE;
+          $div = (int)((int)$div / (int)self::BIGNUMBER_BASE);
+          $tnumber[] = $s;
+        }
+        $numbers = array_merge($numbers, array_reverse( $tnumber) );
+      }
 
       // are we done?
       if( $length <= 0 )
@@ -1556,14 +1568,17 @@ class BigNumber
       $numerator = new BigNumber( $mod );
 
       //  add the number in front
-      array_unshift($numerator->_numbers, $array[$length-1] );
-      --$length;
+      array_unshift($numerator->_numbers, $array[--$length] );
+
+      // get that section number.
       $number = $numerator->ToInt();
     }
 
     // clean up the quotient and the remainder.
-    $remainder->PerformPostOperations( $remainder->_decimals );
     $quotient->PerformPostOperations( $quotient->_decimals );
+
+    // we know that the remainder is currently equal to the numerator, (see clone above).
+    $remainder = static::AbsSub( $remainder, static::AbsMul( $quotient, $denominator, 0 ));
 
     // success
     return true;
@@ -1604,58 +1619,6 @@ class BigNumber
 
     // success
     return true;
-  }
-
-  /**
-   *
-   * @param BigNumber $numerator
-   * @param BigNumber $denominator
-   * @return BigNumber the remainder.
-   */
-  static protected function AbsRemainderWithSmallDenominator($numerator, $denominator )
-  {
-    $numerator = clone static::FromValue($numerator);
-    $denominator = clone static::FromValue($denominator);
-
-    $intDenominator = $denominator->ToInt();
-    $remainder = new BigNumber();
-
-    // @see http://www.devx.com/tips/Tip/39012
-    // @see https://bytes.com/topic/software-development/insights/793965-how-find-modulus-very-large-number
-    // do a fast mod
-    $length = count($numerator->_numbers);
-    for(;;)
-    {
-      // get the first 'x' numbers, as we are in reverse, we get the last x numbers.
-      $number = $numerator->_MakeNumberAtIndexForward(0, self::BIGNUMBER_MAX_NUM_LEN );
-      $mod = $number % $intDenominator;
-
-      if( $length - self::BIGNUMBER_MAX_NUM_LEN < 0 )
-      {
-        //  finalise the remained
-        $remainder = new BigNumber( $mod );
-
-        // break out of the mod loop
-        break;
-      }
-
-      // remove the offset numbers, but, we are working in reverse...
-      $length -= self::BIGNUMBER_MAX_NUM_LEN;
-      $numerator->_numbers = array_slice($numerator->_numbers, 0, $length );
-
-      // we build the numbers, they are been added in reverse.
-      // and this is fine as this is the way our own array works.
-      while ($mod > 0)
-      {
-        $s = $mod % self::BIGNUMBER_BASE;
-        $mod = (int)((int)$mod / (int)self::BIGNUMBER_BASE);
-        $numerator->_numbers[] = $s;
-        $length += 1;
-      }
-    }
-
-    // clean up the quotient and the remainder.
-    return $remainder->PerformPostOperations( $remainder->_decimals );
   }
 
   /**

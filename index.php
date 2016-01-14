@@ -18,20 +18,22 @@ use MyOddWeb\BigNumber;
   </head>
   <body>
 <?php
+set_time_limit(180);
 include ( "src/bignumber.php" );
 
 $time_pre = microtime(true);
-$numerator = new \MyOddWeb\BigNumber( "112345678901234567890123456789012345678901234567890" );
-$denominator = new \MyOddWeb\BigNumber( 5 );
-$quotient = 0;
-$remainder = 0;
-\MyOddWeb\BigNumber::QuotientAndRemainder($numerator, $denominator, $quotient, $remainder);
+
+$y = new BigNumber("123456789");
+$y = new BigNumber("1234567890987654321");
+
+$y->Div("123456789");
+echo $y->ToString(), "<br>"; // 10000000008.00000007290000066339
+                             // 10        8.0000000729000006633900060368490549353263999114702391943791766688505076865396199475105415223459278533
+
+
 $time_post = microtime(true);
 $exec_time = $time_post - $time_pre;
 echo "{$exec_time}ms<br>";
-
-echo $quotient->ToString();
-
 
 echo "<br />";
 echo "BigNumber rules!";
